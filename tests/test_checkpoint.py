@@ -46,10 +46,10 @@ def _multi_trace():
 REASONING_P99 = 3451
 
 
-def test_registry_has_five_detectors():
-    """检查 #2:Registry 成立,遍历驱动。"""
-    assert [d.rule_id for d in ALL_DETECTORS] == ["TOOL-001", "CMP-001", "THINK-001", "RETRY-001", "SUB-001"]
-    assert set(ALL_ATTRIBUTION_ENGINES.keys()) == {"TOOL-001", "CMP-001", "THINK-001", "RETRY-001", "SUB-001"}
+def test_registry_has_six_detectors():
+    """检查 #2:Registry 成立,遍历驱动(TOOL-004 追加于 SUB-001 之后)。"""
+    assert [d.rule_id for d in ALL_DETECTORS] == ["TOOL-001", "CMP-001", "THINK-001", "RETRY-001", "SUB-001", "TOOL-004"]
+    assert set(ALL_ATTRIBUTION_ENGINES.keys()) == {"TOOL-001", "CMP-001", "THINK-001", "RETRY-001", "SUB-001", "TOOL-004"}
 
 
 def test_pipeline_no_rule_specific_branch():

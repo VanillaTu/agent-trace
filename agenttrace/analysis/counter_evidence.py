@@ -13,6 +13,7 @@
     THINK-001 观测性反证(推理强度高不证明不必要)
     RETRY-001 观测性反证(重试可能是正确容错,usage=0 无成本)
     SUB-001   观测性反证(委托可能是合理并行/分工)
+    TOOL-004  adjacent_step → 反证(可能是新的独立调用,保置信);call_id → 无反证
     其他     空反证,置信度保持原值
 """
 
@@ -199,6 +200,21 @@ def _sub_001(finding: Finding, trace: Trace, threshold_n: int) -> tuple[list[Cou
     ], finding.confidence
 
 
+def _tool_004(finding: Finding, trace: Trace, threshold_n: int) -> tuple[list[CounterEvidence], float]:
+    """TOOL-004 反证:adjacent_step 是"同类+相邻"推断,存在"成功调用其实是
+    一次新的独立调用"的推翻方向;call_id 是 call 身份同一的直接证据,无反证。
+    置信度保持 detector 原值(detector 已在三档中折价:0.85/0.70)。"""
+    if finding.details.get("retry_evidence") == "adjacent_step":
+        return [
+            CounterEvidence(
+                direction="相邻同类成功可能是新的独立调用而非重试(无 callId 关联,参数已修正)",
+                source="rule",
+                detail=f"tool={finding.details.get('tool_name', '?')}",
+            )
+        ], finding.confidence
+    return [], finding.confidence  # call_id:身份同一,无反证
+
+
 # rule_id → 纯函数
 RULES: dict[str, object] = {
     "TOOL-001": _tool_001,
@@ -206,6 +222,7 @@ RULES: dict[str, object] = {
     "THINK-001": _think_001,
     "RETRY-001": _retry_001,
     "SUB-001": _sub_001,
+    "TOOL-004": _tool_004,
 }
 
 

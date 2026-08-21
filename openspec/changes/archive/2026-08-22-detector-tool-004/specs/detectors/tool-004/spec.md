@@ -36,7 +36,7 @@ detector SHALL 扫描每个 step 的每个 tool_call,判定该次调用是否为
 
 对每个参数错误失败 attempt,detector SHALL 判定是否存在"同类重试成功",存在时 SHALL 输出一条 finding,标记该失败 attempt 为"可避免的失败尝试"。
 
-- 同类重试成功 SHALL 满足:存在一个**后续**的成功调用(`is_error=False`),且满足其一:(a) 与失败 attempt **同一 callId**(call_id 相等,调用身份同一,重试证据类型 call_id);或(b) 与失败 attempt **同 tool_name**(同类),且位于失败 attempt 所在 step 的同一 step(靠后的调用位置)或紧随其后的 step(全局 step 位置差 ≤ 1 步,重试证据类型 adjacent_step)。
+- 同类重试成功 SHALL 满足:存在一个**后续**的成功调用(`is_error=False`),且满足其一:(a) 与失败 attempt **同一 callId**(call_id 相等,调用身份同一,重试证据类型 call_id;⚠️ 当前 adapter 每个 call_id 只落一条 `tool/result`,该分支在真实数据下**不可达**,仅合成测试覆盖);或(b) 与失败 attempt **同 tool_name**(同类)且**同一 turn**,并位于失败 attempt 之后、紧随其后的 step(step 位置差 = 1 步,重试证据类型 adjacent_step)。**不配对同 step 内"靠后调用"**(同一 assistant 消息内的多个 tool-call 是并行,不构成"失败后重试",评审 M2);**跨 turn 不配对**(turn 末失败与下一 turn 首成功中间隔着用户新消息,非模型自主重试,评审 M5)。
 - 配对 SHALL 只按 tool_name / call_id,**不要求参数一致**(失败 attempt 缺参、重试已补参,参数本就不一致——这正是 TOOL-001 漏检的原因)。
 - 每个参数错误失败 attempt SHALL 至多输出一条 finding(occurrences=1);多个失败 attempt 各自成 finding。
 - 成功重试的配对 SHALL 取距离失败 attempt 最近的一个;无成功重试的参数错误失败 attempt SHALL NOT 输出 finding。

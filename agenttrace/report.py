@@ -17,6 +17,8 @@ summary 头部:
 分析层(enable_analysis=True,默认关闭):
     - 每条 finding 追加 Confidence + Counter-evidence(反证)
     - Summary 追加"综合判断"块(会话画像 top-3 + 健康度概述)
+    - Summary 追加"上下文健康度"块(CTX-001,会话级观测,非 finding)
+       —— 窗口字段未知时占用显示 not applicable,不虚构压力结论
 
 铁律保持:
     - 四组语义隔离,禁止 "Total wasted tokens"
@@ -61,6 +63,10 @@ RULE_META = {
         "signal": "发生 subagent 委托(descriptor 事件)",
         "interpretation": "拓扑观测(非缺陷)——记录委托模式(mode/provider),不判断使用是否合理",
     },
+    "TOOL-004": {
+        "signal": "无效参数重试:工具调用因参数错误失败,同类重试成功",
+        "interpretation": "模式标记(可避免的失败尝试)——失败 attempt 无 usage,不估算 token 成本;建议核查参数构造逻辑",
+    },
 }
 
 
@@ -88,6 +94,10 @@ def _observed(f: Finding, att) -> str:
         parts.append(f"mode={d['mode']} provider={d['provider']}")
     if "error_code" in d:
         parts.append(f"error={d['error_code']} outcome={d.get('outcome')}")
+    if "error_pattern" in d:
+        parts.append(
+            f"tool={d['tool_name']} error={d['error_pattern']} retry={d['retry_evidence']}"
+        )
     return ", ".join(parts) if parts else "—"
 
 
@@ -99,6 +109,10 @@ def _attribution_line(att) -> str:
         return f"候选可避免成本 {att.total_tokens} tokens(direct={att.direct.tokens}, propagated={att.propagated.tokens}, unattributed={att.unattributed_tokens})"
     if att.kind == "reliability":
         return "无 token 归因(失败尝试 usage=0)"
+    if att.kind == "flag":
+        # 模式标记(TOOL-004):失败 attempt 无 usage,tokens=not applicable,
+        # 不是 0;不把成功重试的 usage 算进失败 attempt。
+        return "无 token 归因(失败 attempt 无 usage,tokens=not applicable)"
     return f"观测资源 {att.total_tokens} tokens(非 avoidable)"
 
 
@@ -143,18 +157,62 @@ def _render_profile_block(profile) -> list[str]:
     return lines
 
 
+def _render_context_health_block(ch) -> list[str]:
+    """渲染上下文健康度块(CTX-001,分析层观测)。
+
+    纯函数、确定性。语义边界:
+    - 无工具调用时重复率显示"无工具调用",非 "0%"(None = not applicable,不是 0);
+    - 无真实窗口字段时窗口/占用率显示 not applicable,不虚构窗口、不产虚假压力;
+    - 块内不出现 token 成本数字或因果断言("浪费"/"导致"/"Total wasted"),
+      压力行只陈述"占用高关联退化风险(相关性非因果)"。
+    """
+    lines: list[str] = ["", "### 上下文健康度(CTX-001)"]
+
+    rate_str = (
+        "无工具调用" if ch.repeat_rate is None else f"{ch.repeat_rate:.1%}"
+    )
+    window_str = (
+        f"{ch.window_tokens} tokens(来源 {ch.window_source})"
+        if ch.window_tokens is not None
+        else f"not applicable(来源 {ch.window_source})"
+    )
+    occupancy_str = (
+        "not applicable" if ch.occupancy_ratio is None else f"{ch.occupancy_ratio:.1%}"
+    )
+
+    lines.append(
+        f"- 当前上下文: {ch.current_context_tokens} tokens(input + cache_read)"
+    )
+    lines.append(f"- 峰值上下文: {ch.peak_context_tokens} tokens")
+    lines.append(f"- turn 数: {ch.turn_count}")
+    lines.append(
+        f"- 重复工具调用操作率: {rate_str}(重复 {ch.repeated_tool_calls}/{ch.total_tool_calls})"
+    )
+    lines.append(f"- 上下文窗口: {window_str}")
+    lines.append(f"- 占用率: {occupancy_str}")
+    if ch.pressure_high:
+        lines.append(
+            f"⚠ 上下文压力高,建议压缩(占用 {ch.occupancy_ratio:.1%} > 阈值 70%;"
+            "占用高仅关联退化风险,非因果)"
+        )
+    return lines
+
+
 def render_report(
     trace: Trace,
     findings: list[Finding],
     attributions,
     enable_analysis: bool = False,
     profile=None,
+    context_health=None,
 ) -> str:
     """渲染诊断报告。
 
     enable_analysis(默认 False):开启分析层渲染(per-finding 置信度/反证 +
-    Summary 综合判断块)。关闭时输出与 v0.5 逐字节一致。
+    Summary 综合判断块 + 上下文健康度块)。关闭时输出与 v0.5 逐字节一致。
     profile:会话画像;开启且为 None 时惰性计算(调用方通常从 pipeline 传入)。
+    context_health:上下文健康度观测(CTX-001);开启且为 None 时惰性计算
+    (调用方通常从 pipeline 传入)。
     """
     lines: list[str] = []
     lines.append("# AgentTrace Diagnostic Report")
@@ -173,13 +231,20 @@ def render_report(
         if enable_analysis and profile is None:
             from .analysis.profile import build_profile
             profile = build_profile([], [])
+        if enable_analysis and context_health is None:
+            from .analysis.context_health import build_context_health
+            context_health = build_context_health(trace)
         if enable_analysis:
             lines.extend(_render_profile_block(profile))
+            lines.extend(_render_context_health_block(context_health))
         return "\n".join(lines)
 
     if enable_analysis and profile is None:
         from .analysis.profile import build_profile
         profile = build_profile(findings, attributions)
+    if enable_analysis and context_health is None:
+        from .analysis.context_health import build_context_health
+        context_health = build_context_health(trace)
 
     # attribution 配对
     att_by_key: dict[tuple[str, int], object] = {}
@@ -200,16 +265,17 @@ def render_report(
     )
     reliability_n = by_rule_count.get("RETRY-001", 0)
     obs_n = by_rule_count.get("CMP-001", 0) + by_rule_count.get("SUB-001", 0)
-    flag_n = by_rule_count.get("THINK-001", 0)
+    flag_n = by_rule_count.get("THINK-001", 0) + by_rule_count.get("TOOL-004", 0)
     lines.append(f"- 可归因成本(仅 cost): {cost_total} tokens")
     lines.append(f"- 可靠性事件: {reliability_n}  |  观测信号: {obs_n}  |  统计标记: {flag_n}")
     # evidence 覆盖率
     with_ev = sum(1 for f in findings if f.evidence)
     cov = with_ev / len(findings) * 100 if findings else 0
     lines.append(f"- Evidence 覆盖率: {cov:.0f}%({with_ev}/{len(findings)})")
-    # 综合判断块(仅分析层开启时渲染)
+    # 综合判断块 + 上下文健康度块(仅分析层开启时渲染)
     if enable_analysis:
         lines.extend(_render_profile_block(profile))
+        lines.extend(_render_context_health_block(context_health))
     lines.append("")
 
     # ===== 按 kind 分组的五段式 =====

@@ -20,7 +20,8 @@ Detector Registry (detectors/__init__.py)
    ├── CMP-001
    ├── THINK-001
    ├── RETRY-001
-   └── SUB-001
+   ├── SUB-001
+   └── TOOL-004
    ↓
 Finding[]
    ↓
@@ -30,7 +31,8 @@ Attribution[] (kind: cost / observation / flag / reliability)
    ↓
 Analysis (analysis/, Stage 3, enable_analysis=True 时挂载,默认关闭)
    ├── counter-evidence(反证)+ 置信度完善(纯规则)
-   └── session-profile(会话画像:top-3 + 健康度概述)
+   ├── session-profile(会话画像:top-3 + 健康度概述)
+   └── context-health(上下文健康度观测:CTX-001,会话级数据块,非 detector)
    ↓
 Report (report.py)
 ```
@@ -104,10 +106,11 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 | THINK-001 | 56 会话 2042 step 分布 | P95=1498 / P99=3451 | statistical flag |
 | RETRY-001 | 56 会话 retry 盘点 | usage=0 → 无虚构 cost | reliability observation |
 | SUB-001 | 56 会话 15 descriptor 盘点 | flat delegation,无 lifecycle | execution topology observation |
+| TOOL-004 | 参数错误失败 + 同类重试成功(确定性规则) | tool/result isError 文本 + 空参代理 | avoidable-failure flag |
 
 **核心方法论**:规则不是假设,而是由真实数据决定的(每个 detector 都先做 evidence inventory 再写规则)。
 
-### 五类语义谱系
+### 六类语义谱系
 
 | Detector | Finding.kind | Attribution.kind | tokens |
 |---|---|---|---|
@@ -116,6 +119,7 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 | THINK-001 | flag | observation | 有(reasoning) |
 | RETRY-001 | reliability | reliability | None(usage=0) |
 | SUB-001 | observation | observation | None(无成本字段) |
+| TOOL-004 | flag | flag | None(失败 attempt 无 usage) |
 
 **关键边界(数据驱动,诚实声明)**:
 - SUB-001 真实数据:descriptor 无 outcome/parent/cost 字段 → 只能做 delegation observation,不能重建 topology;
@@ -130,13 +134,14 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 |---|---|---|
 | 第一层 确定性规则 | TOOL-001 / RETRY-001 规则检测 | detector 直接出 finding |
 | 第二层 统计证据 | THINK-001 分布驱动(P95/P99) | 统计阈值来自真实分布 |
-| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
+| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 上下文健康度 + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
 | 第三层 LLM 语义 | **未实现(设计预留)** | 见 `openspec/changes/complete-analysis-layer/design.md` D6;`CounterEvidence.source="semantic"` 已预留取值 |
 
-**分析层三件事(纯规则,无 LLM)**:
-1. **反证(counter-evidence)**:每个 finding 附带"可能推翻此发现"的证据方向(TOOL-001 间隔大/无状态工具;CMP/THINK/RETRY/SUB 观测性反证)。
+**分析层四件事(纯规则,无 LLM)**:
+1. **反证(counter-evidence)**:每个 finding 附带"可能推翻此发现"的证据方向(TOOL-001 间隔大/无状态工具;CMP/THINK/RETRY/SUB 观测性反证;TOOL-004 adjacent_step 可能是独立调用)。
 2. **置信度完善**:沿用 `Finding.confidence`,基于证据强度精化(TOOL-001 间隔≤N 且参数一致→高置信;间隔>N→降置信+反证;无状态→保持 0.55+反证)。
 3. **会话画像**:Summary 新增"综合判断"块,按"可归因成本 × 置信度"确定性排序 top-3 + 一句话健康度概述。
+4. **上下文健康度(CTX-001)**:Summary 新增"上下文健康度"块(会话级观测数据块,非 detector/finding)——当前/峰值上下文 tokens(含 cache_read,M1 口径)、turn 数、重复工具调用操作率;量化"上下文压力"仅在 `metadata["context_window"]` 真实已知时给出,否则显示 not applicable(不虚构窗口、不产虚假压力结论);不判因果、不做成本归因。
 
 **分析层边界铁律**:
 - 反证/置信度是"分析"不是"归因",不参与成本归因、不发明 token 成本;
@@ -145,8 +150,8 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 
 ## 七、测试
 
-- 114 个 pytest 全过(83 原有 + 24 分析层 + 7 评审加固)
-- 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 开关门控 / 默认路径逐字节对比
+- 170 个 pytest 全过(114 原有 + 35 新增 TOOL-004 + 21 新增 CTX-001 上下文健康度)
+- 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 上下文健康度观测 / 开关门控 / 默认路径逐字节对比
 
 ## 八、Roadmap
 
@@ -156,8 +161,9 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 ✅ THINK-001     statistical flag
 ✅ RETRY-001     reliability event + no cost
 ✅ SUB-001       execution topology
+✅ TOOL-004      invalid-param retry flag(可避免失败尝试标记)
 ✅ v0.3          semantic/architecture checkpoint
-✅ 分析层         counter-evidence + 置信度 + 会话画像(纯规则)
+✅ 分析层         counter-evidence + 置信度 + 上下文健康度 + 会话画像(纯规则)
 ⏳ LLM 语义层     设计预留,未实现
 ⏳ v0.6          Cross-Session Lineage
 ```

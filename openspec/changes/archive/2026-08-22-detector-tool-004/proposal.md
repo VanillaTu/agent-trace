@@ -19,5 +19,5 @@
 ## Impact
 
 - 代码:新增 `detectors/tool_004.py`、`attribution/tool_004.py`;`detectors/__init__.py` 与 `attribution/__init__.py` 注册;`report.py` 整合。
-- 测试:新增 `tests/test_tool_004.py`;现有 114 测试须保持全绿(**additive**,纯新增不改变现有 detector 默认输出)。
+- 测试:新增 `tests/test_tool_004.py`;现有 113 个测试行为不变 + 1 个 registry 快照测试更新(`test_registry_has_five_detectors` 5→6)+ 文档事实同步(跑 `scripts/check_facts.py`)。**additive 铁律指不改现有 detector 行为**;注册表与文档计数属命中面同步更新,非行为变更。
 - 无破坏性变更(不修改现有 detector 行为)。

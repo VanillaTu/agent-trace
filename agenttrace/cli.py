@@ -50,6 +50,7 @@ def cmd_analyze(args) -> int:
         result.attributions,
         enable_analysis=args.analysis,
         profile=result.profile,
+        context_health=result.context_health,
     )
 
     if args.out:

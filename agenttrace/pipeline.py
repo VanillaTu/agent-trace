@@ -5,7 +5,7 @@
     Raw DSH → Adapter → Canonical Trace
         → Detector Registry (ALL_DETECTORS) → Finding[]
         → Attribution Registry (ALL_ATTRIBUTION_ENGINES) → Attribution[]
-        → Analysis (Stage 3, enable_analysis=True):counter-evidence + 置信度 + 画像
+        → Analysis (Stage 3, enable_analysis=True):counter-evidence + 置信度 + 上下文健康度 + 画像
         → Report
 
 关键保证:
@@ -37,6 +37,8 @@ class DiagnosisResult:
     attribution_errors: dict[str, str] = field(default_factory=dict)
     # 分析层开启时的会话画像(Stage 3 产物);关闭时为 None
     profile: Optional[object] = None
+    # 分析层开启时的上下文健康度观测(Stage 3 产物,ContextHealth 实例);关闭时为 None
+    context_health: Optional[object] = None
 
 
 def diagnose(
@@ -89,13 +91,15 @@ def diagnose(
         except Exception as e:
             result.attribution_errors[rule] = str(e)
 
-    # Stage 3: Analysis(反证 + 置信度完善 + 会话画像)
+    # Stage 3: Analysis(反证 + 置信度完善 + 上下文健康度 + 会话画像)
     # 默认关闭;开启时挂载在 attribution 之后(画像依赖 attribution 输出)
     if enable_analysis:
+        from .analysis.context_health import build_context_health
         from .analysis.counter_evidence import refine_findings
         from .analysis.profile import build_profile
 
         refine_findings(result.findings, trace)
+        result.context_health = build_context_health(trace)  # 不进 findings/attributions
         result.profile = build_profile(result.findings, result.attributions)
 
     return result

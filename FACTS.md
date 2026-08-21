@@ -8,9 +8,9 @@
 
 | 事实 | 当前值 | 事实源 | 文档声明 pattern |
 |---|---|---|---|
-| 测试总数 | 114 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
+| 测试总数 | 170 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
 | 间隔阈值 N | 5 | `counter_evidence.DEFAULT_GAP_THRESHOLD` | `阈值 N=N` |
-| detector 数 | 5 个 detector | `detectors.ALL_DETECTORS` | `N 个 detector` |
+| detector 数 | 6 个 detector | `detectors.ALL_DETECTORS` | `N 个 detector` |
 
 ## Manual(人工数据核验,改动需更新日期)
 
@@ -25,4 +25,6 @@
 ## 核验记录
 
 - 2026-08-22 **107 → 114**:Pro 异模型评审修复 +7 测试(空 findings 渲染、缺证据保守×2、非法阈值、全 non-cost 排序、默认置信度守护、报告逐字节确定性),同步 ARCHITECTURE/09/README/08/PROJECT_STATE/FACTS 自身。此前残留:ARCHITECTURE 107、09 107、README 83、08 83/83、PROJECT_STATE 83/83+83 个 pytest(全部修正)。
+- 2026-08-22 **114 → 149**:detector-tool-004 新增 TOOL-004 invalid-param-retry(detector + attribution + 双 registry 注册 + 报告四处集成 + 分析层反证)+35 测试;同步 FACTS/ARCHITECTURE/09/README/08/PROJECT_STATE/根 README(detector 数 5→6、测试总数 114→149)。
+- 2026-08-22 **149 → 170**:detector-ctx-001 新增分析层数据块 ContextHealth(上下文健康度观测,非 detector,不注册双 registry)+21 测试;同步 FACTS/ARCHITECTURE/09/README/08/PROJECT_STATE/根 README(测试总数 149→170;detector 数保持 6 不变)。
 <!-- facts-check:skip-end -->

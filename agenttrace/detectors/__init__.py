@@ -5,6 +5,7 @@ from .retry_001 import ModelRetryDetector
 from .sub_001 import SubagentDelegationDetector
 from .think_001 import ReasoningIntensityDetector
 from .tool_001 import DuplicateToolCallDetector
+from .tool_004 import InvalidParamRetryDetector
 
 ALL_DETECTORS = [
     DuplicateToolCallDetector,
@@ -12,4 +13,5 @@ ALL_DETECTORS = [
     ReasoningIntensityDetector,
     ModelRetryDetector,
     SubagentDelegationDetector,
+    InvalidParamRetryDetector,
 ]

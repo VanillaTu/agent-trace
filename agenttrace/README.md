@@ -2,7 +2,7 @@
 
 > **定位**:以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断。
 > **数据源**:DeepSeek Harness(DSH)会话日志;Adapter 层抽象了 harness 差异,可扩展其他 Agent harness。
-> **状态**:v0.5 + 分析层 ✅(114 tests;`--analysis` 默认关闭保确定性)
+> **状态**:v0.5 + 分析层 ✅(170 tests;`--analysis` 默认关闭保确定性)
 
 ## 一句话
 
@@ -12,7 +12,7 @@ agenttrace analyze <session>
 
 → 输出五段式诊断报告(Signal / Evidence / Observed / Attribution / Interpretation),让工程师拿到就能判断"这个值得调查"。
 
-## 五类 detector 谱系
+## 六类 detector 谱系
 
 | Detector | Finding.kind | 语义 | tokens |
 |---|---|---|---|
@@ -21,6 +21,7 @@ agenttrace analyze <session>
 | THINK-001 | flag | 推理强度异常 | 观测 |
 | RETRY-001 | reliability | 模型重试(可靠性) | None(usage=0) |
 | SUB-001 | observation | subagent 委托拓扑 | None(无成本字段) |
+| TOOL-004 | flag | 无效参数重试(可避免失败尝试标记) | None(无 usage) |
 
 ## 核心原则
 
@@ -33,7 +34,7 @@ agenttrace analyze <session>
 ```bash
 cd agenttrace   # 项目根目录
 
-# 1. 跑测试(114 个全绿)
+# 1. 跑测试(170 个全绿)
 python -m pytest tests -v
 
 # 2. 分析一个 DSH 会话
@@ -47,8 +48,8 @@ python -m agenttrace.cli list-detectors
 
 ```
 Raw DSH → Adapter → Canonical Trace (turns/steps + events)
-   → Detector Registry (5 个) → Finding[]
-   → Attribution Registry (5 个) → Attribution[] (kind: cost/observation/flag/reliability)
+   → Detector Registry (6 个) → Finding[]
+   → Attribution Registry (6 个) → Attribution[] (kind: cost/observation/flag/reliability)
    → Report (五段式 + Summary + 四组语义隔离)
 ```
 
@@ -63,6 +64,7 @@ Raw DSH → Adapter → Canonical Trace (turns/steps + events)
 ✅ RETRY-001 (reliability, usage=0)
 ✅ v0.3 checkpoint (kind 解耦 + 语义冻结)
 ✅ SUB-001 (topology observation)
+✅ TOOL-004 (invalid-param retry, 可避免失败尝试标记)
 ✅ v0.4 correlation inventory (负结论 + 跨 session 方向)
 ✅ v0.5 First Useful Release (analyze + 五段式 + 陌生 trace E2E)
 ⏳ v0.6 Cross-Session Lineage (SUB → child session → TOOL/CMP/THINK/RETRY)

@@ -9,8 +9,8 @@
 - **免埋点**:离线读取 DSH 会话日志,无需侵入 agent
 - **确定性规则**:输出 100% 可复现,不依赖 LLM 猜测(LLM 语义层已设计、未实现)
 - **归因边界**:无证据不归因;`tokens=None` 表示 not applicable,不虚构 token 成本
-- **五类 detector 谱系**:TOOL-001(cost 重复调用)/ CMP-001(observation 压缩)/ THINK-001(flag 推理强度)/ RETRY-001(reliability, usage=0 不虚构成本)/ SUB-001(observation 委托)
-- **分析层**(默认关闭,开启不破坏确定性):反证(counter-evidence)+ 置信度完善 + 会话综合画像
+- **六类 detector 谱系**:TOOL-001(cost 重复调用)/ CMP-001(observation 压缩)/ THINK-001(flag 推理强度)/ RETRY-001(reliability, usage=0 不虚构成本)/ SUB-001(observation 委托)/ TOOL-004(flag 无效参数重试,无 token 归因)
+- **分析层**(默认关闭,开启不破坏确定性):反证(counter-evidence)+ 置信度完善 + 会话综合画像 + 上下文健康度观测(CTX-001)
 - **五段式报告**:Signal / Evidence / Observed / Attribution / Interpretation
 
 ## 快速开始
@@ -22,7 +22,7 @@ python -m agenttrace.cli analyze <DSH会话目录>
 # 列出全部 detector
 python -m agenttrace.cli list-detectors
 
-# 跑测试(114 个)
+# 跑测试(170 个)
 python -m pytest tests -q
 ```
 
@@ -30,8 +30,8 @@ python -m pytest tests -q
 
 ```
 Raw DSH → Adapter → Canonical Trace (turns/steps + events)
-   → Detector Registry (5) → Finding[]
-   → Attribution Registry (5) → Attribution[] (kind: cost/observation/flag/reliability)
+   → Detector Registry (6) → Finding[]
+   → Attribution Registry (6) → Attribution[] (kind: cost/observation/flag/reliability)
    → Analysis (analysis/, 默认关闭) → Report (五段式 + 四组语义隔离)
 ```
 
