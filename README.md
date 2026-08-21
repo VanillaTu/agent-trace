@@ -2,6 +2,13 @@
 
 > Agent 执行轨迹效率缺陷检测与 Token 归因引擎(Agent execution-efficiency defect detection & token attribution engine)
 
+<p align="center">
+  <img src="https://img.shields.io/badge/tests-170%20passed-brightgreen" alt="pytest 170 passed">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="license MIT">
+  <img src="https://img.shields.io/badge/python-3.13-blue" alt="python 3.13">
+  <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-blue" alt="DeepSeek Harness 0.1.1-rc.2">
+</p>
+
 面向 DeepSeek Harness(DSH)会话日志,以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断——检测执行缺陷、把判断归因到可验证证据、输出可行动建议,让工程师拿到报告就能判断"这个值得调查"。
 
 ## 核心特性
@@ -25,6 +32,41 @@ python -m agenttrace.cli list-detectors
 # 跑测试(170 个)
 python -m pytest tests -q
 ```
+
+## 示例输出
+
+分析一个 DSH 会话、`--analysis` 开启分析层时的报告外观(示意,基于真实会话脱敏):
+
+```text
+# AgentTrace Diagnostic Report
+会话: `<session-id>`  模型: `deepseek-v4-flash`
+turns: 122  steps: 601  tool_calls: 591
+
+## Summary
+- TOOL-001: 10 个 finding
+- 可归因成本(仅 cost): 9249 tokens
+- Evidence 覆盖率: 100%(16/16)
+
+### 综合判断
+1. `TOOL-001#3` 重复工具调用(候选可避免成本) — 可归因成本 1544 tokens,置信度 0.50
+**健康度概述:** detector 信号分布(cost 缺陷 8 处(候选可避免 ~7579 tokens)、观测 0 处、统计标记 7 处、可靠性 1 处;反证 15 条);建议优先核查 TOOL-001
+
+### 上下文健康度(CTX-001)
+- 当前上下文: 61200 tokens(input + cache_read)   [窗口未知,占用 not applicable]
+- turn 数: 122
+- 重复工具调用操作率: 12.3%(重复 73/591)
+
+## Cost defects (候选可避免成本)
+### TOOL-001 `duplicate_tool_call`
+**Signal:** 重复工具调用:同一工具+等价参数被执行多次
+**Evidence:** turn 26 step 1   **Observed:** occurrences=3
+**Attribution:** 候选可避免成本 933 tokens(direct=590, propagated=343, unattributed=871)
+**Interpretation:** 成本缺陷(候选可避免)——第 2..N 次调用可能冗余,建议核查循环/缓存逻辑
+**Confidence:** 0.50(证据强度,非成本可信度)
+**Counter-evidence:** 两次调用间隔大,中间可能有状态变化,重复可能是有意操作
+```
+
+完整样例见 `reports/e2e_analysis_on.md`(已脱敏)。
 
 ## 架构
 
