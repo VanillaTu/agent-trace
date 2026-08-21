@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# Node(npm 全局安装的 OpenSpec 不经此仓库,但仍排除本地 node_modules)
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 系统
+Thumbs.db
+.DS_Store
+
+# 隐私保护:真实 DSH 会话数据绝不开源
+*.jsonl
+*.zstd
+*.jsonl.zstd
+sessions/
+sample_data/
+trace_*.jsonl
+
+# 本地配置(可能含个人路径/密钥)
+*.local.yaml
+*.local.yml
+
+# 开发工具配置(OpenSpec agent skills,个人工作流,不进仓库)
+.agents/
+
+# 真实会话分析快照(含会话 ID/绝对路径,开源不携带;本地保留)
+reports/*_real_session.md
+reports/e2e-session-*.md
+reports/e2e_unfamiliar.md
+reports/v03_checkpoint_report.md
+reports/session-*.md
+research/detector-blindspot-audit/reports/
+
+# 内部恢复文档(含绝对路径,不公开)
+PROJECT_STATE.md
+
+# 个人开发笔记(本地工作笔记,不进公开仓库)
+# 根 README.md 是仓库门面(公开产品版);个人讨论版含个人信息,不公开
+/0[1-9]-*.md
+/dsh_share_dump.txt
+
+# 内部调研/策略文档(含内部决策,不公开)
+/research/competitor-deep-dive/
+/openspec/changes/deep-dive-competitors/
+
+# 作者内部分析脚本(真实数据盘点工具,含工作路径,非产品功能)
+/scripts/correlation_inventory.py
+/scripts/gen_report.py
+/scripts/retry001_inventory.py
+/scripts/run_on_real.py
+/scripts/think001_baseline.py

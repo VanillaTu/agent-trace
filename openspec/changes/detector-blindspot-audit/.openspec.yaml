@@ -1,0 +1,6 @@
+﻿schema: spec-driven
+created: 2026-08-22
+goal: 姣忎釜鐩插尯閮芥湁鐪熷疄 trace 鏍锋湰 + 浜嬩欢绫诲瀷 + 瀵瑰簲鏈€鍒濊璁＄殑缂洪櫡绫诲埆,鍙嵁姝ょ珛椤规柊 detector
+
+skip_specs: true
+# skip_specs 理由:本 change 是调研/审计型(产出检测盲区清单),不改变系统行为,无 spec-level 变更。

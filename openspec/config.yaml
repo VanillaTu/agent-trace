@@ -1,0 +1,43 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+context: |
+  项目: AgentTrace —— Agent 执行轨迹效率缺陷检测与 Token 归因引擎。
+  语言/环境: Python 3.13, pytest 测试;测试命令 `python -m pytest tests -q`(当前 114/114 全绿)。
+  架构: Raw DSH trace(JSONL)→ Adapter → Canonical Trace(turns/steps/events)→ Detector Registry → Finding[] → Attribution Registry → Attribution[] → Report。
+  已实现 detector(5 个): TOOL-001(cost,重复工具调用)、CMP-001(observation,compaction shadowedTokenCount)、THINK-001(flag,推理强度统计)、RETRY-001(reliability,usage=0 不虚构成本)、SUB-001(observation,subagent 委托)。
+  核心架构原则(不可违背):
+   - 归因边界: 没有证据就不做成本归因;tokens=None 表示 not applicable,不是 0。
+   - Finding.kind(诊断语义)与 Attribution.kind(证据归因)解耦,不强制一一对应。
+   - 三层评判: 确定性规则 → 统计证据 → LLM 语义(LLM 层当前未实现,off by default)。
+   - correlation ≠ causation;报告禁止 "Total wasted tokens" 式混算。
+  已知范围裁剪(non-goals): 控制 detector 数量——只加有盲区审计证据的高价值项(已立项 TOOL-004/CTX-001,不无限扩展);v0.6 Cross-Session Lineage 不做(暂缓);不做产品化打包发布。
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

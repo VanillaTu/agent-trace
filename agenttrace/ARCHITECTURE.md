@@ -1,0 +1,163 @@
+# AgentTrace 架构文档
+
+> 记录 AgentTrace 的核心架构原则与边界。这是项目从"三个独立脚本"成长为"统一诊断框架"后的正式架构说明。
+
+---
+
+## 一、核心架构
+
+```
+Raw DSH
+   ↓
+Adapter (dsh_adapter.py)
+   ↓
+Canonical Trace (core/canonical_trace.py)
+   ├── turns[] → steps[] (tool_calls / usage / reasoning)
+   └── events[] (compaction / retry / workflow / subagent / finish ...)
+   ↓
+Detector Registry (detectors/__init__.py)
+   ├── TOOL-001
+   ├── CMP-001
+   ├── THINK-001
+   ├── RETRY-001
+   └── SUB-001
+   ↓
+Finding[]
+   ↓
+Attribution Registry (attribution/__init__.py)
+   ↓
+Attribution[] (kind: cost / observation / flag / reliability)
+   ↓
+Analysis (analysis/, Stage 3, enable_analysis=True 时挂载,默认关闭)
+   ├── counter-evidence(反证)+ 置信度完善(纯规则)
+   └── session-profile(会话画像:top-3 + 健康度概述)
+   ↓
+Report (report.py)
+```
+
+**新增 detector 只需**:写 detector 类 + attribution 类 + 在两个 registry 各注册一行。
+
+**分析层开关**:`enable_analysis` 默认 False——关闭时 pipeline 与报告输出与 v0.5 逐字节一致(确定性铁律)。
+
+## 二、统一 Contract
+
+### Finding(Detector 产出)
+```python
+rule_id / type / severity / confidence / occurrences
+evidence[] / fingerprint / details / estimated_avoidable_tokens
+counter_evidence[]  # 反证列表(分析层开启时填充,默认空)
+```
+
+### Attribution(Attribution Engine 产出)
+```python
+finding_id / rule_id / finding_idx / kind
+direct / propagated / unattributed_tokens / confidence
+```
+
+**铁律**:
+- Detector 不负责算钱,Attribution Engine 不负责发现缺陷;
+- `finding_idx` 用于 report 精确配对(不串 finding);
+- 一个 detector 出错不阻塞其他(错误隔离)。
+
+## 三、⭐ Attribution 的语义边界(最重要原则)
+
+### 核心定义
+
+> **Attribution = 把 Finding 映射回 Trace 中可验证的证据/资源,而不是强制把每个 finding 转换成 token cost。**
+
+### 不是每个执行事件都有可归因的 token cost
+
+| Detector | kind | 语义 | 是否有 token cost |
+|---|---|---|---|
+| TOOL-001 | cost | 候选可避免成本(direct + propagated) | ✅ |
+| CMP-001 | observation | 观测资源量(compaction shadowed) | 观测,不声明 avoidable |
+| THINK-001 | flag | 观测强度(reasoning intensity) | 观测,不声明 avoidable |
+| RETRY-001 | reliability/observation | 可靠性事件 | ❌ 无(usage=0) |
+
+### ⭐ 关键:usage=0 是 attribution boundary,不是 missing implementation
+
+RETRY-001 的数据发现:失败的 retry attempt 的 `assistant/chunk usage = (0,0)`。
+
+这意味着:
+- **"retry 浪费 token"在真实数据里不成立**(失败的尝试在 error 前就中断,不产生计费 token);
+- **不能把 retry 次数 × 单价 算成虚构 token 成本**;
+- RETRY-001 的价值是**可靠性观测**(RATE_LIMIT→配额问题,TRANSPORT→连接问题),不是 token 节省;
+- 若未来某 provider 能可靠关联第二次 attempt usage,才允许 RETRY-001 产生 kind=cost(未来 capability,非当前规则)。
+
+## 四、Attribution.kind 四种语义
+
+```python
+kind:
+  "cost"          # 候选可避免成本(TOOL-001):direct+propagated
+  "observation"   # 观测资源量(CMP-001 shadowed / RETRY-001 事件)
+  "flag"          # 观测强度标记(THINK-001 reasoning intensity)
+```
+
+report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一个 "total wasted"**。
+
+## 五、已实现的 Detector(数据驱动)
+
+| Detector | 规则来源 | 关键数据 | 定位 |
+|---|---|---|---|
+| TOOL-001 | 重复调用确定性检测 | tool/call + tool/result callId 关联 | cost defect |
+| CMP-001 | compaction/prune 硬证据 | `shadowedTokenCount` | hard observation |
+| THINK-001 | 56 会话 2042 step 分布 | P95=1498 / P99=3451 | statistical flag |
+| RETRY-001 | 56 会话 retry 盘点 | usage=0 → 无虚构 cost | reliability observation |
+| SUB-001 | 56 会话 15 descriptor 盘点 | flat delegation,无 lifecycle | execution topology observation |
+
+**核心方法论**:规则不是假设,而是由真实数据决定的(每个 detector 都先做 evidence inventory 再写规则)。
+
+### 五类语义谱系
+
+| Detector | Finding.kind | Attribution.kind | tokens |
+|---|---|---|---|
+| TOOL-001 | cost | cost | 有(候选可避免) |
+| CMP-001 | observation | observation | 有(shadowed) |
+| THINK-001 | flag | observation | 有(reasoning) |
+| RETRY-001 | reliability | reliability | None(usage=0) |
+| SUB-001 | observation | observation | None(无成本字段) |
+
+**关键边界(数据驱动,诚实声明)**:
+- SUB-001 真实数据:descriptor 无 outcome/parent/cost 字段 → 只能做 delegation observation,不能重建 topology;
+- RETRY-001 真实数据:失败 attempt usage=0 → 无 token 归因;
+- 这些是**数据的边界**,不是实现的缺陷。
+
+## 六、分析层(三层评判完整描述)
+
+三层评判的落地现状(规则 → 统计 → 分析,LLM 层设计预留):
+
+| 层 | 实现 | 说明 |
+|---|---|---|
+| 第一层 确定性规则 | TOOL-001 / RETRY-001 规则检测 | detector 直接出 finding |
+| 第二层 统计证据 | THINK-001 分布驱动(P95/P99) | 统计阈值来自真实分布 |
+| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
+| 第三层 LLM 语义 | **未实现(设计预留)** | 见 `openspec/changes/complete-analysis-layer/design.md` D6;`CounterEvidence.source="semantic"` 已预留取值 |
+
+**分析层三件事(纯规则,无 LLM)**:
+1. **反证(counter-evidence)**:每个 finding 附带"可能推翻此发现"的证据方向(TOOL-001 间隔大/无状态工具;CMP/THINK/RETRY/SUB 观测性反证)。
+2. **置信度完善**:沿用 `Finding.confidence`,基于证据强度精化(TOOL-001 间隔≤N 且参数一致→高置信;间隔>N→降置信+反证;无状态→保持 0.55+反证)。
+3. **会话画像**:Summary 新增"综合判断"块,按"可归因成本 × 置信度"确定性排序 top-3 + 一句话健康度概述。
+
+**分析层边界铁律**:
+- 反证/置信度是"分析"不是"归因",不参与成本归因、不发明 token 成本;
+- 排序键用 `Finding.confidence`(精化后),不用 attribution 拷贝值;
+- 阈值 N=5 由真实分布校准(76 会话 131 条 TOOL-001,gap 中位数 13,仅 24% ≤5 → 反证机制实际在起作用)。
+
+## 七、测试
+
+- 114 个 pytest 全过(83 原有 + 24 分析层 + 7 评审加固)
+- 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 开关门控 / 默认路径逐字节对比
+
+## 八、Roadmap
+
+```
+✅ TOOL-001      cost defect
+✅ CMP-001       hard observation
+✅ THINK-001     statistical flag
+✅ RETRY-001     reliability event + no cost
+✅ SUB-001       execution topology
+✅ v0.3          semantic/architecture checkpoint
+✅ 分析层         counter-evidence + 置信度 + 会话画像(纯规则)
+⏳ LLM 语义层     设计预留,未实现
+⏳ v0.6          Cross-Session Lineage
+```

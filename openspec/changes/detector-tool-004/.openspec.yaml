@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-22
+goal: 补齐最初设计 05 L558 invalid param retry 检测类别,基于盲区审计证据

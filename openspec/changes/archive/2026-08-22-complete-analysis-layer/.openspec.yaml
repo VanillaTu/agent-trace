@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-21
+goal: 三层评判完整化(规则+统计+语义)、每个 finding 带 counter-evidence、报告 summary 给出会话级综合判断
