@@ -2,6 +2,14 @@
 
 > 记录 AgentTrace 的核心架构原则与边界。这是项目从"三个独立脚本"成长为"统一诊断框架"后的正式架构说明。
 
+## 核心定位(2026-08 明确)
+
+- **真正目标**:测 **Harness 架构/工具性**问题——不是工具调用、也不是单纯省 token。
+- **Token 是切入点/仪器**:harness 的每个架构决策(记账/compaction/fork/缓存/schema)都会在 token 数字上留下可验证痕迹;用「**Token 不变量**」测架构缺陷。
+- **省 Token 是副产品**:架构问题修好后自然省下,不是目的。
+- **方法**:复杂系统多因子耦合 → **不归因整体行为,只测局部封闭不变量**(单变量、可验证、不依赖其他因子)。破坏不变量 = 可测的架构硬伤;设计权衡(说"改成怎样更好")是建议、需 hedge,causal_claim=NONE。
+- **两层面**:(1) 已实现 = Agent 效率诊断 + Token 归因;(2) 构建中 = Harness 架构不变量检查(见 Roadmap)。
+
 ---
 
 ## 一、核心架构
@@ -169,4 +177,5 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 ✅ CLI 会话发现    list-sessions + analyze --session-id(免手输目录)
 ⏳ LLM 语义层     设计预留,未实现(默认关闭保确定性)
 ⏳ v0.6          Cross-Session Lineage
+⏳ 架构评估层      Token 不变量检查(双写 / fork 溢出 / compaction 漏计 / 缓存口径 / schema)——测 Harness 架构/工具性
 ```

@@ -1,6 +1,6 @@
 # AgentTrace
 
-> Agent 执行轨迹效率缺陷检测与 Token 归因引擎(Agent execution-efficiency defect detection & token attribution engine)
+> Harness 架构/工具性检测与 Token 归因引擎——以 Token 切入，诊断 Agent 执行缺陷，进而测出 Harness 架构(工具性)问题(Engine to diagnose agent-efficiency defects AND assess Harness architecture behavior via token invariants)
 
 <p align="center">
   <img src="https://img.shields.io/badge/tests-196%20passed-brightgreen" alt="pytest 196 passed">
@@ -9,7 +9,9 @@
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-blue" alt="DeepSeek Harness 0.1.1-rc.2">
 </p>
 
-面向 DeepSeek Harness(DSH)会话日志,以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断——检测执行缺陷、把判断归因到可验证证据、输出可行动建议,让工程师拿到报告就能判断"这个值得调查"。
+面向 DeepSeek Harness(DSH)会话日志。以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断——检测执行缺陷、把判断归因到可验证证据、输出可行动建议。
+
+**核心定位**：省 Token 只是副产品。真正的目标是用 **Token 作为切入点**，通过可验证的「Token 不变量」测出 **Harness 架构/工具性**问题（token 记账正确性、compaction 净账、fork/lineage 记账、缓存口径、schema 稳定性）。当前已实现的是 Agent 效率诊断与 Token 归因层；「Harness 架构不变量检查」是正在构建的架构评估层(路线图见 `agenttrace/ARCHITECTURE.md`)。
 
 ## 核心特性
 
