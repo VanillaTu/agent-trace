@@ -178,4 +178,29 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 ⏳ LLM 语义层     设计预留,未实现(默认关闭保确定性)
 ⏳ v0.6          Cross-Session Lineage
 ⏳ 架构评估层      Token 不变量检查(双写 / fork 溢出 / compaction 漏计 / 缓存口径 / schema)——测 Harness 架构/工具性
+⏳ CDSA           (paper arXiv:2511.10650)循环/无进展检测——FLOW 候选,默认关语义聚类,未实现
 ```
+
+## 九、参考论文技法(候选,未实现)
+
+> 从论文/竞品提炼、暂未落地为实现的技法,先固化到文档防止遗忘、也防止"参考过却没实现"的失真。
+> 统一原则:守确定性(默认关 / 确定性代理)、`causal_claim=NONE`、不归因整体行为。
+
+### CDSA — 循环/无进展检测(FLOW 候选)
+
+**来源**:IBM Research, arXiv:2511.10650《Unsupervised Cycle Detection in Agentic Applications》(ACM/SPEC ICPE 2026 WIP)。
+
+**方法**(轨迹 = span 元组 ⟨trace_id, span_id, parent_span_id, op, input, output⟩):
+- **CDDAG(结构)**:父-子 DAG,边权重 = 该父子对出现频次,`> μ+m·σ` 判环。
+- **CDCS(结构/调用栈)**:时间序列排序 + 滑窗找连续子序列,频次 `> μ+k·σ` 判环。
+- **CDSA(语义)**:span output 向量余弦相似度,只比兄弟节点(降复杂度),`> 阈值 s` 判冗余。
+- **Hybrid**:结构 + 语义融合,抓"单独任一维都抓不全"的环。
+
+**结果**(1575 条 LangGraph 股票应用轨迹):Hybrid **F1=0.72**(P=0.62, R=0.86);结构 only F1=0.08,语义 only F1=0.28 → **多信号融合远超单信号**。⚠️ 注意 **P=0.62(38% 误报)**,作者自标 WIP、未达生产级。
+
+**与 AgentTrace 的关系**:
+- 我们 **SUB-001 是 flat、无 parent_span_id 层级** → 缺论文的 span 层级建模。
+- 我们三层评判的**语义层默认关**;L2 是统计(THINK 分位),**未做语义聚类** → 这是 05 文档"你的 L2 应引入语义相似度聚类"的来源,但未落地。
+- 我们守 `correlation≠causation`、`causal_claim=NONE`,比它**保守**(它 P=0.62 会误报;我们宁可标 observation/flag,不给因果)。
+
+**落点(候选)**:作为 **FLOW 类别**候选信号,**默认关闭**的分析标记。守确定性 → 用**确定性相似度代理**(minhash / token-set Jaccard)而非 LLM 嵌入;classification=flag/observation,`causal_claim=NONE`。**未实现。**
