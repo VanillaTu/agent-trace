@@ -6,7 +6,7 @@
 
 import pytest
 
-from agenttrace.cli import cmd_list_sessions
+from agenttrace.cli import _resolve_session_dir, cmd_list_sessions, main
 
 
 def _make_layout(root):
@@ -49,3 +49,47 @@ def test_list_sessions_missing_root(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "未发现" in out
+
+
+# ---- _resolve_session_dir:analyze/diagnose 的 --session-id 解析 ----
+# 覆盖:直接给目录、两者冲突、按 ID 解析、ID 未找到、两者都缺
+
+
+def test_resolve_direct_dir(tmp_path):
+    d, err = _resolve_session_dir(str(tmp_path / "sess"), None, None)
+    assert err is None
+    assert d == str(tmp_path / "sess")
+
+
+def test_resolve_conflict(tmp_path):
+    d, err = _resolve_session_dir(str(tmp_path / "sess"), "abc", None)
+    assert d is None
+    assert "冲突" in err
+
+
+def test_resolve_by_session_id(tmp_path):
+    root = tmp_path / "sessions"
+    _make_layout(root)  # alpha 与 beta 两个会话
+    d, err = _resolve_session_dir(None, "beta", str(root))
+    assert err is None
+    assert d.endswith("beta")
+
+
+def test_resolve_session_id_not_found(tmp_path):
+    root = tmp_path / "sessions"
+    _make_layout(root)
+    d, err = _resolve_session_dir(None, "gamma", str(root))
+    assert d is None
+    assert "未找到会话" in err
+
+
+def test_resolve_neither():
+    d, err = _resolve_session_dir(None, None, None)
+    assert d is None
+    assert "需要提供" in err
+
+
+def test_main_analyze_session_id_wire(tmp_path):
+    # 走 argparse 全链路:--session-id 解析失败应返回 2(而非误当目录解析)
+    rc = main(["analyze", "--session-id", "gamma", "--root", str(tmp_path), "--out", "x.md"])
+    assert rc == 2

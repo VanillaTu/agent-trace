@@ -150,7 +150,7 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 
 ## 七、测试
 
-- 177 个 pytest 全过(114 原有 + 35 新增 TOOL-004 + 21 新增 CTX-001 上下文健康度 + 2 新增 CLI 会话发现)
+- 183 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / CTX-001×21
 - 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 上下文健康度观测 / 开关门控 / 默认路径逐字节对比
 
 ## 八、Roadmap

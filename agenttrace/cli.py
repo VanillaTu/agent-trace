@@ -2,6 +2,7 @@
 
 用法:
     python -m agenttrace.cli analyze <session_dir> [--detector TOOL-001] [--out report.md]
+    python -m agenttrace.cli analyze --session-id <id> [--root <DSH sessions 根目录>] [--out report.md]
     python -m agenttrace.cli diagnose <session_dir> [...]   # analyze 的别名
     python -m agenttrace.cli list-detectors
     python -m agenttrace.cli list-sessions [--root <DSH sessions 根目录>]
@@ -27,8 +28,33 @@ def _load_trace(session_dir: str):
     return load_dsh_session(session_dir)
 
 
+def _resolve_session_dir(session_dir, session_id, root):
+    """把 analyze/diagnose 的输入解析成实际 session 目录。
+
+    返回 (session_dir, None) 或 (None, 错误信息)。
+    支持:直接给目录;或给 --session-id 从 DSH 会话根目录解析。
+    """
+    if session_dir and session_id:
+        return None, "参数冲突:不能同时给分析目录与 --session-id"
+    if session_id:
+        from .adapters.dsh_adapter import discover_sessions
+        for s in discover_sessions(root):
+            if s["session_id"] == session_id:
+                return s["session_dir"], None
+        return None, f"未找到会话 {session_id!r}(可用 list-sessions 查看)"
+    if session_dir:
+        return session_dir, None
+    return None, "需要提供 session_dir 或 --session-id"
+
+
 def cmd_analyze(args) -> int:
-    trace = _load_trace(args.session_dir)
+    session_dir, err = _resolve_session_dir(
+        args.session_dir, getattr(args, "session_id", None), getattr(args, "root", None)
+    )
+    if err:
+        print(err, file=sys.stderr)
+        return 2
+    trace = _load_trace(session_dir)
 
     from .detectors import ALL_DETECTORS
     names = [d.rule_id for d in ALL_DETECTORS]
@@ -104,8 +130,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agenttrace", description="Agent Execution Trace Analyzer")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_analyze = sub.add_parser("analyze", help="对 DSH 会话目录跑完整诊断")
-    p_analyze.add_argument("session_dir", help="包含 session.jsonl.zstd 的目录")
+    p_analyze = sub.add_parser("analyze", help="对 DSH 会话跑完整诊断(目录或 --session-id)")
+    p_analyze.add_argument("session_dir", nargs="?", help="包含 session.jsonl.zstd 的目录")
+    p_analyze.add_argument("--session-id", help="从 DSH 会话根目录按会话 ID 解析(免手输目录)")
+    p_analyze.add_argument("--root", default=None, help="DSH 会话根目录(配合 --session-id)")
     p_analyze.add_argument("--detector", help="逗号分隔的 detector 名(默认全部)")
     p_analyze.add_argument("--out", help="输出 Markdown 报告路径")
     p_analyze.add_argument(
@@ -116,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     p_analyze.set_defaults(func=cmd_analyze)
 
     p_diag = sub.add_parser("diagnose", help="analyze 的别名")
-    p_diag.add_argument("session_dir")
+    p_diag.add_argument("session_dir", nargs="?", help="包含 session.jsonl.zstd 的目录")
+    p_diag.add_argument("--session-id", help="从 DSH 会话根目录按会话 ID 解析(免手输目录)")
+    p_diag.add_argument("--root", default=None, help="DSH 会话根目录(配合 --session-id)")
     p_diag.add_argument("--detector", help="逗号分隔的 detector 名(默认全部)")
     p_diag.add_argument("--out", help="输出 Markdown 报告路径")
     p_diag.add_argument(
