@@ -4,6 +4,7 @@
     python -m agenttrace.cli analyze <session_dir> [--detector TOOL-001] [--out report.md]
     python -m agenttrace.cli diagnose <session_dir> [...]   # analyze 的别名
     python -m agenttrace.cli list-detectors
+    python -m agenttrace.cli list-sessions [--root <DSH sessions 根目录>]
 """
 
 from __future__ import annotations
@@ -79,6 +80,26 @@ def cmd_list(args) -> int:
     return 0
 
 
+def cmd_list_sessions(args) -> int:
+    """扫描 DSH 会话根目录(默认 ~/.dsh/sessions),列出可分析的会话。
+
+    把 adapter 层的 discover_sessions 接入 CLI:不再只是死代码,
+    让用户无需手输 session 目录即可看到本机有哪些可分析的会话。
+    """
+    from .adapters.dsh_adapter import _default_sessions_root, discover_sessions
+
+    sessions = discover_sessions(args.root)
+    display_root = args.root or str(_default_sessions_root())
+    if not sessions:
+        print(f"未发现可分析的 DSH 会话(根目录: {display_root})")
+        return 0
+    print(f"发现 {len(sessions)} 个 DSH 会话(根目录: {display_root})")
+    print(f"  {'session_id':<48}has_zstd")
+    for s in sessions:
+        print(f"  {s['session_id']:<48}{s['has_zstd']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agenttrace", description="Agent Execution Trace Analyzer")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -107,6 +128,17 @@ def main(argv: list[str] | None = None) -> int:
 
     p_list = sub.add_parser("list-detectors", help="列出已注册的 detector")
     p_list.set_defaults(func=cmd_list)
+
+    p_sess = sub.add_parser(
+        "list-sessions",
+        help="扫描 DSH 会话根目录,列出可分析的会话(analyze 取其一即可用)",
+    )
+    p_sess.add_argument(
+        "--root",
+        default=None,
+        help="DSH 会话根目录(默认取 DSH_SESSIONS_DIR 环境变量,否则 ~/.dsh/sessions)",
+    )
+    p_sess.set_defaults(func=cmd_list_sessions)
 
     args = parser.parse_args(argv)
     _reconfigure_stdout_utf8()

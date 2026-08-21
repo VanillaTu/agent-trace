@@ -34,13 +34,16 @@ agenttrace analyze <session>
 ```bash
 cd agenttrace   # 项目根目录
 
-# 1. 跑测试(175 个全绿)
+# 1. 跑测试(177 个全绿)
 python -m pytest tests -v
 
 # 2. 分析一个 DSH 会话
 python -m agenttrace.cli analyze "~/.dsh/sessions/<会话目录>"
 
-# 3. 列出 detector
+# 3. 列出可分析的 DSH 会话(不必手输目录,扫到后取其一即可 analyzer)
+python -m agenttrace.cli list-sessions
+
+# 4. 列出 detector
 python -m agenttrace.cli list-detectors
 ```
 
