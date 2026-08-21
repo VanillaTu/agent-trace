@@ -3,7 +3,7 @@
 > Agent 执行轨迹效率缺陷检测与 Token 归因引擎(Agent execution-efficiency defect detection & token attribution engine)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-170%20passed-brightgreen" alt="pytest 170 passed">
+  <img src="https://img.shields.io/badge/tests-189%20passed-brightgreen" alt="pytest 189 passed">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license MIT">
   <img src="https://img.shields.io/badge/python-3.13-blue" alt="python 3.13">
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-blue" alt="DeepSeek Harness 0.1.1-rc.2">
@@ -29,7 +29,7 @@ python -m agenttrace.cli analyze <DSH会话目录>
 # 列出全部 detector
 python -m agenttrace.cli list-detectors
 
-# 跑测试(170 个)
+# 跑测试(189 个)
 python -m pytest tests -q
 ```
 

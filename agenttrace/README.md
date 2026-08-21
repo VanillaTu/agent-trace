@@ -2,7 +2,7 @@
 
 > **定位**:以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断。
 > **数据源**:DeepSeek Harness(DSH)会话日志;Adapter 层抽象了 harness 差异,可扩展其他 Agent harness。
-> **状态**:v0.5 + 分析层 ✅(170 tests;`--analysis` 默认关闭保确定性)
+> **状态**:v0.5 + 分析层 ✅(189 tests;`--analysis` 默认关闭保确定性)
 
 ## 一句话
 
