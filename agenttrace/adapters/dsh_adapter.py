@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -237,25 +238,105 @@ def parse_dsh_jsonl(file_path: str) -> Trace:
     return trace
 
 
+def _decompress_zstd(zstd_path: Path) -> str:
+    """解压 zstd 到临时 jsonl,返回临时文件路径。
+
+    优先走 Python 内置 zstandard 库(无外部二进制依赖,DSH 换机可用);
+    库不可用时回退到系统 zstd 命令行(兼容旧环境)。
+    """
+    import tempfile
+
+    tmp = tempfile.mktemp(suffix=".jsonl")
+    try:
+        try:
+            import zstandard  # type: ignore
+
+            with zstd_path.open("rb") as f:
+                dctx = zstandard.ZstdDecompressor()
+                with dctx.stream_reader(f) as reader, open(tmp, "wb") as out:
+                    out.write(reader.read())
+        except ImportError:
+            import shutil
+            import subprocess
+
+            zstd = shutil.which("zstd")
+            if not zstd:
+                raise DSHParseError(
+                    "zstandard 库不可用且系统 zstd 命令未安装,无法解压会话日志"
+                )
+            subprocess.run(
+                [zstd, "-d", "-f", str(zstd_path), "-o", tmp],
+                capture_output=True,
+                check=True,
+            )
+        return tmp
+    except Exception:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def load_dsh_session(session_dir: str) -> Trace:
     """从 DSH 会话目录加载:自动解压 zstd 并解析。
 
     session_dir 指向包含 session.jsonl.zstd 的目录。
     """
-    import subprocess
-    import tempfile
-
     zstd_path = Path(session_dir) / "session.jsonl.zstd"
     if not zstd_path.exists():
         raise DSHParseError(f"not found: {zstd_path}")
 
-    tmp = tempfile.mktemp(suffix=".jsonl")
-    subprocess.run(
-        ["zstd", "-d", "-f", str(zstd_path), "-o", tmp],
-        capture_output=True,
-        check=True,
-    )
+    tmp = _decompress_zstd(zstd_path)
     try:
         return parse_dsh_jsonl(tmp)
     finally:
         Path(tmp).unlink(missing_ok=True)
+
+
+# ---- 会话发现(DSH 目录布局探测)----
+# 脆弱点 B:早期把 ~/.dsh/sessions/<转义 cwd>/<session-id>/session.jsonl.zstd 硬编码。
+# 这里抽成可配置 + 可探测:DSH 改布局时只需改这里,调用方(CLI/脚本)不用动。
+
+
+def _default_sessions_root() -> Path:
+    """DSH 会话根目录。优先级:DSH_SESSIONS_DIR 环境变量 > ~/.dsh/sessions。"""
+    env = os.environ.get("DSH_SESSIONS_DIR")
+    if env:
+        return Path(env)
+    return Path.home() / ".dsh" / "sessions"
+
+
+def discover_sessions(root: str | None = None) -> list[dict]:
+    """扫描 DSH 会话根目录,返回可用会话元数据列表。
+
+    每个元素:{"session_id", "session_dir", "has_zstd"}。
+    root 默认用 _default_sessions_root;不存在则返回空列表。
+    """
+    base = Path(root) if root else _default_sessions_root()
+    if not base.exists():
+        return []
+    sessions: list[dict] = []
+    for child in sorted(base.iterdir()):
+        if not child.is_dir():
+            continue
+        # 布局:根/<cwd 组>/<session-id>/session.jsonl.zstd
+        # 兼容:session.jsonl.zstd 直接放在根下(无 cwd 组)的情形
+        for cand in (child / "session.jsonl.zstd",):
+            if cand.exists():
+                sessions.append(
+                    {
+                        "session_id": child.name,
+                        "session_dir": str(child),
+                        "has_zstd": True,
+                    }
+                )
+                break
+        else:
+            for sub in sorted(child.iterdir()):
+                if sub.is_dir() and (sub / "session.jsonl.zstd").exists():
+                    sessions.append(
+                        {
+                            "session_id": sub.name,
+                            "session_dir": str(sub),
+                            "has_zstd": True,
+                        }
+                    )
+    return sessions

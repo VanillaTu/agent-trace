@@ -34,7 +34,7 @@ agenttrace analyze <session>
 ```bash
 cd agenttrace   # 项目根目录
 
-# 1. 跑测试(170 个全绿)
+# 1. 跑测试(175 个全绿)
 python -m pytest tests -v
 
 # 2. 分析一个 DSH 会话
