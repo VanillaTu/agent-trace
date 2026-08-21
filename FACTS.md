@@ -8,7 +8,7 @@
 
 | 事实 | 当前值 | 事实源 | 文档声明 pattern |
 |---|---|---|---|
-| 测试总数 | 189 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
+| 测试总数 | 196 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
 | 间隔阈值 N | 5 | `counter_evidence.DEFAULT_GAP_THRESHOLD` | `阈值 N=N` |
 | detector 数 | 6 个 detector | `detectors.ALL_DETECTORS` | `N 个 detector` |
 
@@ -28,4 +28,5 @@
 - 2026-08-22 **114 → 149**:detector-tool-004 新增 TOOL-004 invalid-param-retry(detector + attribution + 双 registry 注册 + 报告四处集成 + 分析层反证)+35 测试;同步 FACTS/ARCHITECTURE/09/README/08/PROJECT_STATE/根 README(detector 数 5→6、测试总数 114→149)。
 - 2026-08-22 **149 → 170**:detector-ctx-001 新增分析层数据块 ContextHealth(上下文健康度观测,非 detector,不注册双 registry)+21 测试;同步 FACTS/ARCHITECTURE/09/README/08/PROJECT_STATE/根 README(测试总数 149→170;detector 数保持 6 不变)。
 - 2026-08-22 **170 → 189**:CLI 会话发现 2 测试(list-sessions)+ analyze --session-id 解析 6 测试 + pipeline --detector 过滤器 6 测试(183→189);同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值。
+- 2026-08-22 **189 → 196**:分析层追加"建议维"(Recommendation,补全四元组"建议"输出,纯规则、默认关闭保确定性)+7 测试;同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值。
 <!-- facts-check:skip-end -->

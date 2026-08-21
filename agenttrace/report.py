@@ -15,7 +15,7 @@ summary 头部:
     - evidence 覆盖率
 
 分析层(enable_analysis=True,默认关闭):
-    - 每条 finding 追加 Confidence + Counter-evidence(反证)
+    - 每条 finding 追加 Recommendation(调优建议,补全四元组"建议"维)+ Confidence + Counter-evidence(反证)
     - Summary 追加"综合判断"块(会话画像 top-3 + 健康度概述)
     - Summary 追加"上下文健康度"块(CTX-001,会话级观测,非 finding)
        —— 窗口字段未知时占用显示 not applicable,不虚构压力结论
@@ -42,30 +42,38 @@ KIND_LABELS = {
 }
 
 # 每个 rule 的五段式模板(Signal / Interpretation 是规则语义,写死在报告层)
+# recommendation 是分析层(enable_analysis=True)追加的"调优建议"段,补全四元组"建议"维。
+# 全部确定性、行动导向,并守归因边界:不虚构成本、不为无成本(flag/reliability)推荐"能回收 token"。
 RULE_META = {
     "TOOL-001": {
         "signal": "重复工具调用:同一工具+等价参数被执行多次",
         "interpretation": "成本缺陷(候选可避免)——第 2..N 次调用可能冗余,建议核查循环/缓存逻辑",
+        "recommendation": "核查第 2..N 次调用的语义:若为幂等调用可由缓存/去重消除;非幂等需显式控制并发。可回收性取决于调用语义,非保证。",
     },
     "CMP-001": {
         "signal": "上下文压缩(compaction/prune)发生,shadowed 一批 token",
         "interpretation": "观测(非缺陷)——压缩可能是必要的上下文管理,记录 shadowed 量供容量分析",
+        "recommendation": "记录 shadowed 量作容量基线;若压缩高发,评估精简注入上下文/记忆策略以降低压缩触发。",
     },
     "THINK-001": {
         "signal": "推理强度异常高(reasoning tokens 超过 baseline 分位)",
         "interpretation": "统计标记(非缺陷)——仅表明该 step 推理消耗高,不能证明其不必要",
+        "recommendation": "抽查该 step 推理是否对应复杂任务(非异常);仅统计标记,不构成缺陷,慎做成本结论。",
     },
     "RETRY-001": {
         "signal": "模型调用发生重试(retry event)",
         "interpretation": "可靠性事件(非缺陷)——指示 provider/网络/配额问题,无 token 归因(失败尝试 usage=0)",
+        "recommendation": "检查 provider/网络/配额;失败尝试无 token 归因,重试属容错,重点关注是否需重试退避/限流策略。",
     },
     "SUB-001": {
         "signal": "发生 subagent 委托(descriptor 事件)",
         "interpretation": "拓扑观测(非缺陷)——记录委托模式(mode/provider),不判断使用是否合理",
+        "recommendation": "确认子代理委托是否必要(mode/provider);频繁 fork 时评估开销,不判断使用合理性。",
     },
     "TOOL-004": {
         "signal": "无效参数重试:工具调用因参数错误失败,同类重试成功",
         "interpretation": "模式标记(可避免的失败尝试)——失败 attempt 无 usage,不估算 token 成本;建议核查参数构造逻辑",
+        "recommendation": "核查工具参数构造逻辑(为何首次参数错);失败 attempt 无 token 归因,属可避免的失败尝试,重点在防错而非回收成本。",
     },
 }
 
@@ -300,8 +308,9 @@ def render_report(
             lines.append(f"**Observed:** {_observed(f, att)}")
             lines.append(f"**Attribution:** {_attribution_line(att)}")
             lines.append(f"**Interpretation:** {meta['interpretation']}")
-            # 置信度 + 反证(仅分析层开启时渲染)
+            # 建议维(Recommendation,补全四元组"建议") + 置信度 + 反证(仅分析层开启时渲染)
             if enable_analysis:
+                lines.append(f"**Recommendation:** {meta.get('recommendation', '—')}")
                 lines.append(_confidence_line(f))
                 lines.extend(_counter_evidence_lines(f))
             # 证据链(若有)

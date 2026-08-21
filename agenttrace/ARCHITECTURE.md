@@ -150,7 +150,7 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 
 ## 七、测试
 
-- 189 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / pipeline×6 / CTX-001×21
+- 196 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / pipeline×6 / recommendation×7 / CTX-001×21
 - 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 上下文健康度观测 / 开关门控 / 默认路径逐字节对比
 
 ## 八、Roadmap
@@ -164,6 +164,7 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 ✅ TOOL-004      invalid-param retry flag(可避免失败尝试标记)
 ✅ v0.3          semantic/architecture checkpoint
 ✅ 分析层         counter-evidence + 置信度 + 上下文健康度 + 会话画像(纯规则)
+✅ 建议维         Recommendation(分析层,补全四元组"建议";守归因边界,默认关闭)
 ✅ CTX-001       上下文健康度数据块(会话级观测,非 detector;窗口真实已知才判压力)
 ✅ CLI 会话发现    list-sessions + analyze --session-id(免手输目录)
 ⏳ LLM 语义层     设计预留,未实现(默认关闭保确定性)

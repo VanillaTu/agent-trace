@@ -2,7 +2,7 @@
 
 > **定位**:以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断。
 > **数据源**:DeepSeek Harness(DSH)会话日志;Adapter 层抽象了 harness 差异,可扩展其他 Agent harness。
-> **状态**:v0.5 + 分析层 ✅(189 tests;`--analysis` 默认关闭保确定性)
+> **状态**:v0.5 + 分析层 ✅(196 tests;`--analysis` 默认关闭保确定性)
 
 ## 一句话
 
@@ -34,7 +34,7 @@ agenttrace analyze <session>
 ```bash
 cd agenttrace   # 项目根目录
 
-# 1. 跑测试(189 个全绿)
+# 1. 跑测试(196 个全绿)
 python -m pytest tests -v
 
 # 2. 分析一个 DSH 会话(给目录)
