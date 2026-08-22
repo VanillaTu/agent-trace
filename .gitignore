@@ -89,3 +89,14 @@ PROJECT_STATE.md
 
 # A1 实证记录(DSH usage 记账异常,含真实会话 ID/原始 usage 值;本地保留)
 /research/harness-usage-accounting-findings.md
+
+# 机制审计研究(2026-08-22 收尾,含真实会话证据/会话 ID;本地保留)
+/research/harness-mechanism-findings.md
+/research/mechanism_probe.py
+/research/mechanism_probe_inspect.py
+/research/mechanism_probe_out.json
+/research/mechanism_verify.py
+/research/mechanism_m5_precision.py
+/research/packed_row_verify.py
+/research/packed_row_adapter_check.py
+/research/packed_coexist_check.py
