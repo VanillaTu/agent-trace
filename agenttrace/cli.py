@@ -78,6 +78,7 @@ def cmd_analyze(args) -> int:
         enable_analysis=args.analysis,
         profile=result.profile,
         context_health=result.context_health,
+        token_invariant=result.token_invariant,
     )
 
     if args.out:

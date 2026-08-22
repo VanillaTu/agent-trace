@@ -206,6 +206,76 @@ def _render_context_health_block(ch) -> list[str]:
     return lines
 
 
+def _render_token_invariant_block(ti) -> list[str]:
+    """渲染架构不变量检查块(A1,分析层观测)。
+
+    纯函数、确定性。语义边界:
+    - 无双写时显示"未检测到双写";
+    - 有双写时陈述观测 + 风险(非去重消费方会 2×),causal_claim=NONE;
+    - 先报双写 step 精确 2×,再报全局稀释因子(B/C 修复);
+    - 不出现 "wasted" / "Total wasted" / "harness bug" 等措辞;
+    - 不一致步数独立显示,不并入溢出计算。
+    """
+    lines: list[str] = ["", "### 架构不变量检查 — Token 记账(A1)"]
+
+    if ti is None or ti.duplicate_usage_steps == 0:
+        lines.append("")
+        lines.append("未检测到 usage 双写。")
+        if ti is not None and ti.inconsistent_usage_steps > 0:
+            lines.append(
+                f"⚠ 发现 {ti.inconsistent_usage_steps} 个 (turn,step) "
+                "在多事件源中 usage 数值不一致——源保真度异常,建议核查。"
+            )
+        return lines
+
+    # 双写观测
+    lines.append("")
+    lines.append(
+        f"- **双写观测**:{ti.duplicate_usage_steps} 个 (turn,step) 的 usage "
+        "在 `assistant/chunk` 与 `assistant/message` 两个事件源中各出现一次且数值一致。"
+    )
+
+    # 溢出上界
+    lines.append(
+        f"- **去重后会话总量**:{ti.total_deduped_tokens} tokens(input+output)"
+    )
+    lines.append(
+        f"- **非去重消费方的假设性溢出上界**:{ti.naive_double_count_tokens} tokens"
+    )
+
+    # 双写子集内乘数(核心诊断信号,先报,不被全局稀释)
+    lines.append(
+        f"- **双写子集内乘数**:每个双写 step 被朴素求和**精确 2× 高估**"
+        f"(共 {ti.duplicate_usage_steps} 个双写 step,恒 {ti.double_write_multiplier:.0f}×)"
+    )
+    lines.append(
+        f"- **全局稀释后溢出倍数**:{ti.over_count_factor:.2f}×"
+        f"({'全双写,全局即 2×' if ti.over_count_factor >= 1.99 else '部分双写,被非双写 step 稀释'})"
+    )
+
+    # 风险陈述(守 D2:不判 bug;先报子集 2×,再报全局稀释)
+    lines.append(
+        f"- **风险**:不按 (turn,step) 去重的消费方(朴素 chunk+message 求和)"
+        f"会对 {ti.duplicate_usage_steps} 个双写 step **精确 2× 高估** usage;"
+        f"全局稀释后溢出倍数为 {ti.over_count_factor:.2f}×。"
+        f"Harness 官方 token-meter 与本项目 adapter 已按 (turn,step) 去重,不受影响。"
+    )
+
+    # 不一致
+    if ti.inconsistent_usage_steps > 0:
+        lines.append(
+            f"- ⚠ **不一致**:{ti.inconsistent_usage_steps} 个 (turn,step) "
+            "在多事件源中 usage 数值不一致——源保真度异常,建议核查。"
+        )
+
+    # 去重建议(hedged,固定措辞,F2 修复去掉恒真条件分支)
+    lines.append(
+        f"- **去重建议**:建议按 (turn,step) 去重(hedged 推荐,非无条件断言)"
+    )
+
+    return lines
+
+
 def render_report(
     trace: Trace,
     findings: list[Finding],
@@ -213,14 +283,16 @@ def render_report(
     enable_analysis: bool = False,
     profile=None,
     context_health=None,
+    token_invariant=None,
 ) -> str:
     """渲染诊断报告。
 
     enable_analysis(默认 False):开启分析层渲染(per-finding 置信度/反证 +
-    Summary 综合判断块 + 上下文健康度块)。关闭时输出与 v0.5 逐字节一致。
+    Summary 综合判断块 + 上下文健康度块 + 架构不变量检查块)。关闭时输出与
+    v0.5 逐字节一致。
     profile:会话画像;开启且为 None 时惰性计算(调用方通常从 pipeline 传入)。
-    context_health:上下文健康度观测(CTX-001);开启且为 None 时惰性计算
-    (调用方通常从 pipeline 传入)。
+    context_health:上下文健康度观测(CTX-001);开启且为 None 时惰性计算。
+    token_invariant:Token 记账不变量观测(A1);开启且为 None 时惰性计算。
     """
     lines: list[str] = []
     lines.append("# AgentTrace Diagnostic Report")
@@ -242,9 +314,13 @@ def render_report(
         if enable_analysis and context_health is None:
             from .analysis.context_health import build_context_health
             context_health = build_context_health(trace)
+        if enable_analysis and token_invariant is None:
+            from .analysis.token_invariant import build_token_invariant
+            token_invariant = build_token_invariant(trace)
         if enable_analysis:
             lines.extend(_render_profile_block(profile))
             lines.extend(_render_context_health_block(context_health))
+            lines.extend(_render_token_invariant_block(token_invariant))
         return "\n".join(lines)
 
     if enable_analysis and profile is None:
@@ -253,6 +329,9 @@ def render_report(
     if enable_analysis and context_health is None:
         from .analysis.context_health import build_context_health
         context_health = build_context_health(trace)
+    if enable_analysis and token_invariant is None:
+        from .analysis.token_invariant import build_token_invariant
+        token_invariant = build_token_invariant(trace)
 
     # attribution 配对
     att_by_key: dict[tuple[str, int], object] = {}
@@ -280,10 +359,11 @@ def render_report(
     with_ev = sum(1 for f in findings if f.evidence)
     cov = with_ev / len(findings) * 100 if findings else 0
     lines.append(f"- Evidence 覆盖率: {cov:.0f}%({with_ev}/{len(findings)})")
-    # 综合判断块 + 上下文健康度块(仅分析层开启时渲染)
+    # 综合判断块 + 上下文健康度块 + 架构不变量检查块(仅分析层开启时渲染)
     if enable_analysis:
         lines.extend(_render_profile_block(profile))
         lines.extend(_render_context_health_block(context_health))
+        lines.extend(_render_token_invariant_block(token_invariant))
     lines.append("")
 
     # ===== 按 kind 分组的五段式 =====

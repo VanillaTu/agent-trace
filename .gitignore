@@ -66,3 +66,7 @@ PROJECT_STATE.md
 /scripts/retry001_inventory.py
 /scripts/run_on_real.py
 /scripts/think001_baseline.py
+/scripts/analyze_usage_doublewrite.py
+
+# A1 真实会话快照(含会话 ID/绝对路径,开源不携带;本地保留)
+/reports/e2e_token_invariant.md

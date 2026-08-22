@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
@@ -62,6 +63,16 @@ class DSHParseError(Exception):
     pass
 
 
+def _usage_equal(u1: dict, u2: dict) -> bool:
+    """比较两份 usage dict 的关键字段是否数值一致(all-pairs 判定用)。
+
+    已知局限:不比较 cacheWriteTokens(当前 Defined+Unobserved,真实样本未见)。
+    若 DSH 未来开始上报该字段,需将其加入 keys 元组。
+    """
+    keys = ("inputTokens", "outputTokens", "cacheReadTokens", "reasoningTokens")
+    return all(u1.get(k) == u2.get(k) for k in keys)
+
+
 def parse_dsh_jsonl(file_path: str) -> Trace:
     """解析 DSH 会话 JSONL 为 Canonical Trace。file_path 为已解压的 JSONL。"""
     trace = Trace(session_id="")
@@ -70,6 +81,9 @@ def parse_dsh_jsonl(file_path: str) -> Trace:
     call_to_step: dict[str, tuple[int, int]] = {}  # callId -> (turn, step)
     model = ""
     session_id = ""
+    # token 双写观测:按 (turn, step) 记录 [(source, usage_dict)]
+    # source = "chunk"(assistant/chunk type=usage)/ "message"(assistant/message 的 data.usage)
+    _usage_sources: dict[tuple[int, int], list[tuple[str, dict]]] = defaultdict(list)
 
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -146,6 +160,8 @@ def parse_dsh_jsonl(file_path: str) -> Trace:
                         cache_write_tokens=u.get("cacheWriteTokens"),  # None if absent
                         reasoning_tokens=u.get("reasoningTokens"),  # None if absent
                     )
+                    # 双写观测:记录 chunk 来源 usage
+                    _usage_sources[(tid, sid)].append(("chunk", u))
                 elif ctype == "reasoning":
                     st.reasoning += chunk.get("reasoning", "")
                 elif ctype == "text":
@@ -189,6 +205,11 @@ def parse_dsh_jsonl(file_path: str) -> Trace:
                     steps[key] = Step(step_id=sid, turn_id=tid)
                     turns.setdefault(tid, Turn(turn_id=tid)).steps.append(steps[key])
                 st = steps[key]
+                # 双写观测:assistant/message 的 usage 在 data.usage(与 message 平级,
+                # 非 message.usage)。真实数据核验(105 会话)确认该路径。
+                d_usage = data.get("usage")
+                if isinstance(d_usage, dict):
+                    _usage_sources[(tid, sid)].append(("message", d_usage))
                 for c in msg.get("content", []):
                     ctype = c.get("type")
                     if ctype == "tool-call":
@@ -229,6 +250,39 @@ def parse_dsh_jsonl(file_path: str) -> Trace:
                             tc.is_error = is_error
                             tc.truncated = truncated
                             break
+
+    # 双写观测事件生成:对 ≥2 来源的 (turn,step),all-pairs 数值一致 → duplicate,
+    # 否则 → inconsistent。只追加观测事件,不改 Step.usage 获胜/遍历/去重顺序。
+    for (tid, sid), sources in _usage_sources.items():
+        if len(sources) < 2:
+            continue  # 单来源:不报
+        usages = [u for _, u in sources]
+        if all(_usage_equal(usages[0], u) for u in usages[1:]):
+            total = usages[0].get("inputTokens", 0) + usages[0].get("outputTokens", 0)
+            trace.events.append(
+                TraceEvent(
+                    type="token/usage-duplicate",
+                    turn_id=tid,
+                    step_id=sid,
+                    data={
+                        "source_count": len(sources),
+                        "total_tokens": total,
+                        "sources": [s for s, _ in sources],
+                    },
+                )
+            )
+        else:
+            trace.events.append(
+                TraceEvent(
+                    type="token/usage-inconsistent",
+                    turn_id=tid,
+                    step_id=sid,
+                    data={
+                        "source_count": len(sources),
+                        "sources": [s for s, _ in sources],
+                    },
+                )
+            )
 
     trace.model = model
     # 按 turn_id 排序 turns,按 step_id 排序 steps

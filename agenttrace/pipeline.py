@@ -39,6 +39,8 @@ class DiagnosisResult:
     profile: Optional[object] = None
     # 分析层开启时的上下文健康度观测(Stage 3 产物,ContextHealth 实例);关闭时为 None
     context_health: Optional[object] = None
+    # 分析层开启时的 Token 记账不变量观测(Stage 3 产物,TokenInvariant 实例);关闭时为 None
+    token_invariant: Optional[object] = None
 
 
 def diagnose(
@@ -97,9 +99,11 @@ def diagnose(
         from .analysis.context_health import build_context_health
         from .analysis.counter_evidence import refine_findings
         from .analysis.profile import build_profile
+        from .analysis.token_invariant import build_token_invariant
 
         refine_findings(result.findings, trace)
         result.context_health = build_context_health(trace)  # 不进 findings/attributions
         result.profile = build_profile(result.findings, result.attributions)
+        result.token_invariant = build_token_invariant(trace)  # 不进 findings/attributions
 
     return result

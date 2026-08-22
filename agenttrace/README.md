@@ -2,7 +2,7 @@
 
 > **定位**:以测试因子分类法(Defect Taxonomy)统一组织 Agent 浪费诊断;并以 **Token 为切入点**、通过可验证的「Token 不变量」测出 **Harness 架构/工具性**问题。**省 Token 是副产品**。
 > **数据源**:DeepSeek Harness(DSH)会话日志;Adapter 层抽象了 harness 差异,可扩展其他 Agent harness。
-> **状态**:v0.5 + 分析层 ✅(196 tests;`--analysis` 默认关闭保确定性);「Harness 架构不变量检查」为正在构建的架构评估层(见 ARCHITECTURE).
+> **状态**:v0.5 + 分析层 ✅(216 tests;`--analysis` 默认关闭保确定性);「Harness 架构不变量检查」(Token 记账双写不变量)已落地(见 ARCHITECTURE).
 
 ## 一句话
 
@@ -34,7 +34,7 @@ agenttrace analyze <session>
 ```bash
 cd agenttrace   # 项目根目录
 
-# 1. 跑测试(196 个全绿)
+# 1. 跑测试(216 个全绿)
 python -m pytest tests -v
 
 # 2. 分析一个 DSH 会话(给目录)
