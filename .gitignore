@@ -86,3 +86,6 @@ PROJECT_STATE.md
 # C1 候选清单 + 真实会话快照(含会话 ID/完整数据,开源不携带;本地保留)
 /reports/e2e_c1.md
 /reports/e2e_c1_candidates.json
+
+# A1 实证记录(DSH usage 记账异常,含真实会话 ID/原始 usage 值;本地保留)
+/research/harness-usage-accounting-findings.md
