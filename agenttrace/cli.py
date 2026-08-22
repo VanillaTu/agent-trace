@@ -56,8 +56,8 @@ def cmd_analyze(args) -> int:
         return 2
     trace = _load_trace(session_dir)
 
-    # B1:--ab 自动启用 --analysis(AB 验证依赖分析层)。
-    if getattr(args, "ab", False):
+    # B1/C1:--ab 或 --semantic 自动启用 --analysis(AB 验证 + 语义候选清单依赖分析层)。
+    if getattr(args, "ab", False) or getattr(args, "semantic", False):
         args.analysis = True
 
     from .detectors import ALL_DETECTORS
@@ -81,6 +81,15 @@ def cmd_analyze(args) -> int:
         session_map=session_map,
     )
 
+    # C1:候选清单 + 回填合并(若指定 --semantic-verdicts)。
+    candidates = result.semantic_candidates
+    verdicts_map = None
+    if getattr(args, "semantic_verdicts", None):
+        from .analysis.c1_semantic import merge_semantic_verdicts
+        candidates, verdicts_map = merge_semantic_verdicts(
+            candidates or [], args.semantic_verdicts
+        )
+
     from .report import render_report
     report = render_report(
         result.trace,
@@ -92,14 +101,26 @@ def cmd_analyze(args) -> int:
         token_invariant=result.token_invariant,
         session_lineage=result.session_lineage,
         ab_result=result.ab_result,
+        semantic_candidates=candidates,
+        semantic_verdicts_map=verdicts_map,
     )
 
-    if args.out:
-        out = Path(args.out)
-        out.write_text(report, encoding="utf-8")
-        print(f"报告已保存: {out.resolve()}")
+    # C1:--semantic 输出候选清单 JSON 到 stdout(供 agent 消费/重定向;评审 G:无 --semantic-out)。
+    if getattr(args, "semantic", False):
+        from .analysis.c1_semantic import serialize_candidates_to_json
+        json_output = serialize_candidates_to_json(
+            candidates or [], trace.session_id, trace.model
+        )
+        print(json_output)
+        if args.out:
+            Path(args.out).write_text(report, encoding="utf-8")
+            print(f"报告已保存: {args.out}", file=sys.stderr)
     else:
-        print(report)
+        if args.out:
+            Path(args.out).write_text(report, encoding="utf-8")
+            print(f"报告已保存: {args.out}")
+        else:
+            print(report)
 
     if result.detector_errors:
         print(f"\n[detector errors] {result.detector_errors}", file=sys.stderr)
@@ -160,6 +181,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="开启 A/B 修复前后对比验证(B1,自动启用 --analysis)",
     )
+    p_analyze.add_argument(
+        "--semantic",
+        action="store_true",
+        help="输出语义判断候选清单 JSON 到 stdout(供 agent 消费;自动启用 --analysis)",
+    )
+    p_analyze.add_argument(
+        "--semantic-verdicts",
+        default=None,
+        help="agent 回填的 verdict JSON 文件路径(合并进报告显示)",
+    )
     p_analyze.set_defaults(func=cmd_analyze)
 
     p_diag = sub.add_parser("diagnose", help="analyze 的别名")
@@ -177,6 +208,16 @@ def main(argv: list[str] | None = None) -> int:
         "--ab",
         action="store_true",
         help="开启 A/B 修复前后对比验证(B1,自动启用 --analysis)",
+    )
+    p_diag.add_argument(
+        "--semantic",
+        action="store_true",
+        help="输出语义判断候选清单 JSON 到 stdout(供 agent 消费;自动启用 --analysis)",
+    )
+    p_diag.add_argument(
+        "--semantic-verdicts",
+        default=None,
+        help="agent 回填的 verdict JSON 文件路径(合并进报告显示)",
     )
     p_diag.set_defaults(func=cmd_analyze)
 

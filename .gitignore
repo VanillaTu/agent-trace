@@ -82,3 +82,7 @@ PROJECT_STATE.md
 /research/b1_*.json
 /reports/e2e_ab.md
 /tests/fixtures/b1_validation_sessions/
+
+# C1 候选清单 + 真实会话快照(含会话 ID/完整数据,开源不携带;本地保留)
+/reports/e2e_c1.md
+/reports/e2e_c1_candidates.json

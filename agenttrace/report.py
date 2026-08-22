@@ -396,6 +396,95 @@ def _render_ab_validation_block(ab) -> list[str]:
     return lines
 
 
+def _verdict_label(v: str) -> str:
+    return {
+        "true_redundant": "🔴 真冗余",
+        "legitimate": "🟢 合法",
+        "uncertain": "🟡 不确定",
+    }.get(v, v)
+
+
+def _render_single_candidate(c, verdicts_map=None) -> list[str]:
+    """渲染单个候选。"""
+    lines: list[str] = []
+    lines.append(f"- **{c.tool_name}** (turn {c.turn_id}, step {c.step_id})")
+    lines.append(f"  - fingerprint: `{c.fingerprint[:16]}...`")
+    lines.append(f"  - 出现: {c.occurrence_index}/{c.total_occurrences}")
+    if c.context:
+        lines.append(f"  - 间隔: {c.context.gap_steps} step(s)")
+        if c.context.intervening_actions:
+            writes = [a for a in c.context.intervening_actions if a.is_write]
+            if writes:
+                lines.append(
+                    f"  - ⚠ 干预动作({len(writes)} 个写入): "
+                    f"{', '.join(a.tool_name for a in writes)}"
+                )
+            else:
+                lines.append("  - 干预动作: 仅读取操作(无写入)")
+        if c.context.tool_result_changed is True:
+            lines.append("  - 工具结果: **已变化**(可能是合法轮询)")
+        elif c.context.tool_result_changed is False:
+            lines.append("  - 工具结果: 未变化(更可能是冗余)")
+        else:
+            lines.append("  - 工具结果: 无法判断(结果截断)")
+    if c.verdict != "not_applicable":
+        lines.append(
+            f"  - **语义判定**: {_verdict_label(c.verdict)} "
+            "[source=semantic, 语义建议，非硬断言]"
+        )
+        lines.append(f"  - 置信度: {c.confidence:.2f}")
+        lines.append(f"  - 理由: {c.reason}")
+    else:
+        lines.append("  - **语义判定**: 待 agent 语义判断")
+    return lines
+
+
+def _render_semantic_block(candidates, verdicts_map=None) -> list[str]:
+    """渲染语义判断(C1)块(分析层观测)。
+
+    纯函数、确定性。语义边界:
+    - causal_claim=NONE;
+    - verdict 标注"语义建议,非硬断言";
+    - 未回填候选标注"待 agent 语义判断";
+    - 不出现 "wasted" / 因果断言。
+    """
+    lines: list[str] = ["", "### 语义判断(C1)"]
+    lines.append("")
+    lines.append("> **causal_claim=NONE**: 以下判定是 agent 的 LLM 语义建议,非硬断言。")
+    lines.append("")
+
+    if not candidates:
+        lines.append("无可语义判断的候选重复。")
+        return lines
+
+    debated = [c for c in candidates if c.is_debated]
+    deterministic = [c for c in candidates if not c.is_debated]
+
+    lines.append(f"- 候选总数: {len(candidates)}")
+    lines.append(f"  - 轮询型(debated): {len(debated)}")
+    lines.append(f"  - 确定性重复: {len(deterministic)}")
+
+    backfilled = sum(1 for c in candidates if c.verdict != "not_applicable")
+    lines.append(f"- 已回填: {backfilled}/{len(candidates)}")
+    lines.append("")
+
+    if debated:
+        lines.append("#### 轮询型候选(优先审视)")
+        lines.append("")
+        for c in debated:
+            lines.extend(_render_single_candidate(c, verdicts_map))
+        lines.append("")
+
+    if deterministic:
+        lines.append("#### 确定性重复候选")
+        lines.append("")
+        for c in deterministic:
+            lines.extend(_render_single_candidate(c, verdicts_map))
+        lines.append("")
+
+    return lines
+
+
 def render_report(
     trace: Trace,
     findings: list[Finding],
@@ -406,11 +495,13 @@ def render_report(
     token_invariant=None,
     session_lineage=None,
     ab_result=None,
+    semantic_candidates=None,
+    semantic_verdicts_map=None,
 ) -> str:
     """渲染诊断报告。
 
     enable_analysis(默认 False):开启分析层渲染(per-finding 置信度/反证 +
-    Summary 综合判断块 + A/B 验证块 + 上下文健康度块 + 架构不变量检查块 +
+    Summary 综合判断块 + A/B 验证块 + 语义判断块 + 上下文健康度块 + 架构不变量检查块 +
     跨会话 Lineage 块)。关闭时输出与 v0.5 逐字节一致。
     profile:会话画像;开启且为 None 时惰性计算(调用方通常从 pipeline 传入)。
     context_health:上下文健康度观测(CTX-001);开启且为 None 时惰性计算。
@@ -418,6 +509,8 @@ def render_report(
     session_lineage:跨会话 Lineage 观测(A2);需要 session_map,无惰性构建,
     仅开启且非 None 时渲染。
     ab_result:修复前后 A/B 对比验证(B1);仅开启且非 None 时渲染。
+    semantic_candidates:C1 语义判断候选清单;开启且非 None 时渲染语义判断块。
+    semantic_verdicts_map:候选 (rule_id, fingerprint, turn_id, step_id) → verdict 映射。
     """
     lines: list[str] = []
     lines.append("# AgentTrace Diagnostic Report")
@@ -446,6 +539,8 @@ def render_report(
             lines.extend(_render_profile_block(profile))
             if ab_result is not None:
                 lines.extend(_render_ab_validation_block(ab_result))
+            if semantic_candidates is not None:
+                lines.extend(_render_semantic_block(semantic_candidates, semantic_verdicts_map))
             lines.extend(_render_context_health_block(context_health))
             lines.extend(_render_token_invariant_block(token_invariant))
             if session_lineage is not None:
@@ -488,11 +583,13 @@ def render_report(
     with_ev = sum(1 for f in findings if f.evidence)
     cov = with_ev / len(findings) * 100 if findings else 0
     lines.append(f"- Evidence 覆盖率: {cov:.0f}%({with_ev}/{len(findings)})")
-    # 综合判断块 + A/B 验证块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块(仅分析层开启时渲染)
+    # 综合判断块 + A/B 验证块 + 语义判断块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块(仅分析层开启时渲染)
     if enable_analysis:
         lines.extend(_render_profile_block(profile))
         if ab_result is not None:
             lines.extend(_render_ab_validation_block(ab_result))
+        if semantic_candidates is not None:
+            lines.extend(_render_semantic_block(semantic_candidates, semantic_verdicts_map))
         lines.extend(_render_context_health_block(context_health))
         lines.extend(_render_token_invariant_block(token_invariant))
         if session_lineage is not None:

@@ -142,10 +142,10 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 |---|---|---|
 | 第一层 确定性规则 | TOOL-001 / RETRY-001 规则检测 | detector 直接出 finding |
 | 第二层 统计证据 | THINK-001 分布驱动(P95/P99) | 统计阈值来自真实分布 |
-| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 上下文健康度 + Token 记账不变量 + 跨会话 Lineage + 修复前后 A/B 验证 + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
-| 第三层 LLM 语义 | **未实现(设计预留)** | 见 `openspec/changes/complete-analysis-layer/design.md` D6;`CounterEvidence.source="semantic"` 已预留取值 |
+| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 上下文健康度 + Token 记账不变量 + 跨会话 Lineage + 修复前后 A/B 验证 + 语义候选清单 + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
+| 第三层 LLM 语义 | **候选清单已落地(C1),判定回填由 agent 完成** | LLM 语义层在调用工具的 agent 身上(C1 架构);AgentTrace 只产候选清单 JSON,agent 用自身 LLM 回填 verdict([`source="semantic"`](../../analysis/c1_semantic.py)) |
 
-**分析层七件事(纯规则,无 LLM)**:
+**分析层八件事(纯规则,无 LLM)**:
 1. **反证(counter-evidence)**:每个 finding 附带"可能推翻此发现"的证据方向(TOOL-001 间隔大/无状态工具;CMP/THINK/RETRY/SUB 观测性反证;TOOL-004 adjacent_step 可能是独立调用)。
 2. **置信度完善**:沿用 `Finding.confidence`,基于证据强度精化(TOOL-001 间隔≤N 且参数一致→高置信;间隔>N→降置信+反证;无状态→保持 0.55+反证)。
 3. **会话画像**:Summary 新增"综合判断"块,按"可归因成本 × 置信度"确定性排序 top-3 + 一句话健康度概述。
@@ -153,6 +153,7 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 5. **Token 记账不变量(A1)**:Summary 新增"架构不变量检查"块(会话级观测数据块,非 detector/finding)——adapter 解析时按 (turn,step) 收集 chunk/message 两份 usage,all-pairs 一致则发 `token/usage-duplicate`、不一致则发 `token/usage-inconsistent`;数据块统计双写步数、"非去重消费方的假设性溢出上界"(`naive_double_count_tokens`)、双写子集内乘数(恒 2.0)与全局稀释因子;`causal_claim=NONE`,不判 harness bug、不混算 wasted。
 6. **跨会话 Lineage(A2)**:Summary 新增"跨会话 Lineage"块(会话级观测数据块,非 detector/finding)——adapter 提取 session 头 `parentSession`/`origin`/`delegationDepth`;沿 `header.parentSession` 权威边构建血缘图,递归聚合 SUBAGENT(`lineage_descendant_*`,仅 origin=subagent)与 FORKED_SESSION(`lineage_fork_descendant_*`,独立层)子代;子会话 token 只归自己、禁止沿链再加总;`causal_claim=NONE`,不判因果、不做成本归因;不可解析 → 悬挂节点,报告注明"本机可解析子图内成立"。
 7. **修复前后 A/B 验证(B1)**:Summary 新增"A/B 验证"块(会话级观测数据块,非 detector/finding)——对单个会话构建 original(全量)与 fixed(去掉 TOOL-001 重复调用 / TOOL-004 失败尝试)两种**静态反事实重述**,量化 tool-call 下降、删 step 数、output token 下降;复用 TOOL-001/TOOL-004 检出逻辑(不改其行为),语义隔离(轮询型 `SEMANTIC_DEBATED_TOOLS` 不计入硬可省)、retry 严格分开(工具级 vs llm/retry)、`causal_claim=NONE`;不把 input token 当省(仅 output 是可信子指标);配套固定验证集(5 会话)与 fixture 化回归。
+8. **语义候选清单(C1)**:Summary 新增"语义判断"块(候选清单层,非 detector/finding)——LLM 语义层**在调用工具的 agent 身上**(用户两次澄清):AgentTrace 是确定性工具,从 TOOL-001/TOOL-004 finding 生成候选清单 JSON(每候选附判断上下文:前后 step / 干预动作 / 工具结果前缀比较 / 轮询型 debated 置前),agent 用自身 LLM 回填 verdict(真冗余/合法/不确定 + 置信度 + 理由)。`causal_claim=NONE`,verdict 是语义建议非硬断言、不改变硬可省数字;未回填时 verdict=not_applicable 不猜;AgentTrace 不内置 LLM 调用、不做 DSH 插件。
 
 **分析层边界铁律**:
 - 反证/置信度是"分析"不是"归因",不参与成本归因、不发明 token 成本;
@@ -161,8 +162,8 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 
 ## 七、测试
 
-- 280 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / pipeline×6 / recommendation×7 / CTX-001×21 / token-invariant×20 / session-lineage×32 / ab-validation×32
-- 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 上下文健康度观测 / Token 记账不变量 / 跨会话 Lineage / A/B 验证(修复前后对比)/ 开关门控 / 默认路径逐字节对比
+- 328 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / pipeline×6 / recommendation×7 / CTX-001×21 / token-invariant×20 / session-lineage×32 / ab-validation×32 / c1-semantic×48
+- 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 上下文健康度观测 / Token 记账不变量 / 跨会话 Lineage / A/B 验证(修复前后对比)/ 语义候选清单(候选生成/上下文/回填合并)/ 开关门控 / 默认路径逐字节对比
 
 ## 八、Roadmap
 

@@ -8,7 +8,7 @@
 
 | 事实 | 当前值 | 事实源 | 文档声明 pattern |
 |---|---|---|---|
-| 测试总数 | 280 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
+| 测试总数 | 328 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
 | 间隔阈值 N | 5 | `counter_evidence.DEFAULT_GAP_THRESHOLD` | `阈值 N=N` |
 | detector 数 | 6 个 detector | `detectors.ALL_DETECTORS` | `N 个 detector` |
 
@@ -32,4 +32,5 @@
 - 2026-08-22 **196 → 216**:token-invariant-check(A1)新增分析层会话级数据块 TokenInvariant(Token 记账双写不变量:adapter 事件生成 + 数据块 + 报告渲染,非 detector)+20 测试;同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
 - 2026-08-22 **216 → 248**:cross-session-lineage(A2)新增分析层会话级数据块 SessionLineage(跨会话血缘:沿 header.parentSession 权威边聚合子会话规模,区分 SUBAGENT/FORKED_SESSION,非 detector)+32 测试;同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
 - 2026-08-22 **248 → 280**:b1-ab-validation(B1)新增分析层会话级数据块 ABResult(修复前后 A/B 对比验证:original/fixed 静态重述,复用 TOOL-001/TOOL-004 检出逻辑,语义隔离 + retry 拆分,非 detector)+32 测试(设计表 T1–T32);同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
+- 2026-08-22 **280 → 328**:c1-semantic-judgment(C1)新增 LLM 语义判断候选清单层(SemanticCandidate/JudgmentContext + build_semantic_candidates/build_judgment_context/merge_semantic_verdicts;LLM 语义层在 agent 身上,AgentTrace 只产候选清单 JSON,非 detector)+48 测试(设计表 T1–T48);同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
 <!-- facts-check:skip-end -->

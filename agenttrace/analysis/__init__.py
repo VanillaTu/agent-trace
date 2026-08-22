@@ -5,6 +5,15 @@ LLM 语义层为设计预留(见 design.md D6),本次不实现。
 """
 
 from .ab_validation import ABResult, SEMANTIC_DEBATED_TOOLS, build_ab_validation
+from .c1_semantic import (
+    InterveningAction,
+    JudgmentContext,
+    SemanticCandidate,
+    build_judgment_context,
+    build_semantic_candidates,
+    merge_semantic_verdicts,
+    serialize_candidates_to_json,
+)
 from .context_health import ContextHealth, build_context_health
 from .counter_evidence import analyze_finding, refine_findings
 from .profile import SessionProfile, build_profile
@@ -15,6 +24,13 @@ __all__ = [
     "ABResult",
     "SEMANTIC_DEBATED_TOOLS",
     "build_ab_validation",
+    "InterveningAction",
+    "JudgmentContext",
+    "SemanticCandidate",
+    "build_judgment_context",
+    "build_semantic_candidates",
+    "merge_semantic_verdicts",
+    "serialize_candidates_to_json",
     "ContextHealth",
     "build_context_health",
     "analyze_finding",

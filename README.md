@@ -3,7 +3,7 @@
 > Harness 架构/工具性检测与 Token 归因引擎——以 Token 切入，诊断 Agent 执行缺陷，进而测出 Harness 架构(工具性)问题(Engine to diagnose agent-efficiency defects AND assess Harness architecture behavior via token invariants)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-280%20passed-brightgreen" alt="pytest 280 passed">
+  <img src="https://img.shields.io/badge/tests-328%20passed-brightgreen" alt="pytest 328 passed">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license MIT">
   <img src="https://img.shields.io/badge/python-3.13-blue" alt="python 3.13">
   <img src="https://img.shields.io/badge/DSH-0.1.1--rc.2-blue" alt="DeepSeek Harness 0.1.1-rc.2">
@@ -19,7 +19,7 @@
 - **确定性规则**:输出 100% 可复现,不依赖 LLM 猜测(LLM 语义层已设计、未实现)
 - **归因边界**:无证据不归因;`tokens=None` 表示 not applicable,不虚构 token 成本
 - **六类 detector 谱系**:TOOL-001(cost 重复调用)/ CMP-001(observation 压缩)/ THINK-001(flag 推理强度)/ RETRY-001(reliability, usage=0 不虚构成本)/ SUB-001(observation 委托)/ TOOL-004(flag 无效参数重试,无 token 归因)
-- **分析层**(默认关闭,开启不破坏确定性):反证(counter-evidence)+ 置信度完善 + 会话综合画像 + 上下文健康度观测(CTX-001)+ Token 记账双写不变量检查(A1)+ 跨会话 Lineage 血缘观测(A2)+ 修复前后 A/B 验证(B1)
+- **分析层**(默认关闭,开启不破坏确定性):反证(counter-evidence)+ 置信度完善 + 会话综合画像 + 上下文健康度观测(CTX-001)+ Token 记账双写不变量检查(A1)+ 跨会话 Lineage 血缘观测(A2)+ 修复前后 A/B 验证(B1)+ 语义判断候选清单(C1,LLM 层在 agent 身上)
 - **五段式报告**:Signal / Evidence / Observed / Attribution / Interpretation
 
 ## 快速开始
@@ -31,7 +31,7 @@ python -m agenttrace.cli analyze <DSH会话目录>
 # 列出全部 detector
 python -m agenttrace.cli list-detectors
 
-# 跑测试(280 个)
+# 跑测试(328 个)
 python -m pytest tests -q
 ```
 
