@@ -30,6 +30,17 @@
 | `v03_checkpoint_report.md` | v0.3 checkpoint 报告 | `session-3ab9b08e` / qwen3-vl | 含真实会话 ID |
 | `full_checkpoint_report.md` | 早期完整报告(占位 id) | `session-<id>` | 占位 |
 
+### 分析层 change E2E(本地保留,含真实会话 ID)
+
+> 这些是分析层各 change(A1/A2/B1/C1)的真实会话端到端验证产物,含真实会话 ID/完整数据,**按 .gitignore 约定不上公开仓库,仅本机保留**。
+
+| 文件 | 用途 | change | 敏感性 |
+|---|---|---|---|
+| `e2e_token_invariant.md` | A1 token 双写不变量 E2E | A1 | 含真实会话 ID(本地) |
+| `e2e_lineage.md` | A2 跨会话血缘 E2E | A2 | 含真实会话 ID(本地) |
+| `e2e_ab.md` | B1 修复前后 A/B 验证 E2E | B1 | 含真实会话 ID + 验证集(本地) |
+| `e2e_c1.md` + `e2e_c1_candidates.json` | C1 LLM 语义候选清单 + 回填 E2E | C1 | 含真实会话 ID/候选(本地) |
+
 ## 三、分析层 E2E(README 示例引用)
 
 | 文件 | 用途 | 敏感性 |
