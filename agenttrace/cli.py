@@ -56,6 +56,10 @@ def cmd_analyze(args) -> int:
         return 2
     trace = _load_trace(session_dir)
 
+    # B1:--ab 自动启用 --analysis(AB 验证依赖分析层)。
+    if getattr(args, "ab", False):
+        args.analysis = True
+
     from .detectors import ALL_DETECTORS
     names = [d.rule_id for d in ALL_DETECTORS]
     detector_names = args.detector.split(",") if args.detector else None
@@ -87,6 +91,7 @@ def cmd_analyze(args) -> int:
         context_health=result.context_health,
         token_invariant=result.token_invariant,
         session_lineage=result.session_lineage,
+        ab_result=result.ab_result,
     )
 
     if args.out:
@@ -150,6 +155,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="开启分析层(反证 + 置信度完善 + 会话综合画像)",
     )
+    p_analyze.add_argument(
+        "--ab",
+        action="store_true",
+        help="开启 A/B 修复前后对比验证(B1,自动启用 --analysis)",
+    )
     p_analyze.set_defaults(func=cmd_analyze)
 
     p_diag = sub.add_parser("diagnose", help="analyze 的别名")
@@ -162,6 +172,11 @@ def main(argv: list[str] | None = None) -> int:
         "--analysis",
         action="store_true",
         help="开启分析层(反证 + 置信度完善 + 会话综合画像)",
+    )
+    p_diag.add_argument(
+        "--ab",
+        action="store_true",
+        help="开启 A/B 修复前后对比验证(B1,自动启用 --analysis)",
     )
     p_diag.set_defaults(func=cmd_analyze)
 

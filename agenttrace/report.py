@@ -322,6 +322,80 @@ def _render_session_lineage_block(sl) -> list[str]:
     return lines
 
 
+def _render_ab_validation_block(ab) -> list[str]:
+    """渲染修复前后 A/B 对比验证块(B1,分析层观测)。
+
+    纯函数、确定性。语义边界:
+    - causal_claim=NONE;method=static_restatement;
+    - input token 标"上下文变化,非可省成本";
+    - retry 严格分开(工具级 vs llm/retry);
+    - semantic=debated 单独披露,不计入硬可省;
+    - 只报观测可省量,不判因果。
+    """
+    lines: list[str] = ["", "### A/B 验证 — 修复前后对比 (B1)"]
+    lines.append("")
+    lines.append(
+        f"> **口径**: 保守模型(整 step 全冗余才删) | 静态反事实重述 | causal_claim={ab.causal_claim}"
+    )
+    lines.append("")
+    lines.append('> **"可省" = 观测值,非因果断言。** 以下数字是"这些调用/step 在会话中确实出现过、且按定义属于可去掉的那一类"。')
+
+    has_findings = (ab.tool001_finding_count + ab.tool001_finding_count_debated + ab.tool004_finding_count) > 0
+    if not has_findings:
+        lines.append("")
+        lines.append("未检测到可对比的重复调用/无效参数重试,AB 验证不适用。")
+        return lines
+
+    lines.append("")
+    lines.append("#### 确定性重复子集(硬可省,排除轮询型工具)")
+    lines.append("")
+    lines.append("| 指标 | original | fixed | 差(观测可省量) |")
+    lines.append("|------|----------|-------|------------------|")
+    lines.append(f"| steps | {ab.original_steps} | {ab.fixed_steps} | -{ab.deleted_steps} |")
+    lines.append(f"| tool-calls | {ab.original_tool_calls} | {ab.fixed_tool_calls} | -{ab.tool_call_reduction} |")
+    lines.append(f"| output tokens | {ab.original_output_tokens} | {ab.fixed_output_tokens} | -{ab.output_token_reduction} |")
+    lines.append(f"| input tokens | {ab.original_input_tokens} | {ab.fixed_input_tokens} | -{ab.input_token_change} ⚠ |")
+    lines.append(f"| total tokens | {ab.original_total_tokens} | {ab.fixed_total_tokens} | -{ab.total_token_change} |")
+    lines.append("")
+    lines.append("> ⚠ **input token 变化是上下文变化,非可省成本**(input_tokens 是完整上下文,大部分是任务必需的历史 context)。")
+    lines.append(f"> **可信子指标:output token 下降 {ab.output_token_reduction} tokens。**")
+    lines.append("")
+
+    lines.append("#### retry 严格分开")
+    lines.append("")
+    lines.append("| 指标 | original | fixed | 变化 |")
+    lines.append("|------|----------|-------|------|")
+    lines.append(f"| 工具级重试(TOOL-004 失败 attempt) | {ab.tool004_failed_attempts} | 0 | -{ab.tool_level_retries_saved} |")
+    lines.append(
+        f"| 模型 API 重试(llm/retry 事件) | {ab.llm_retry_original} | {ab.llm_retry_fixed} | "
+        f"**{ab.llm_retry_change}(静态重述下不变;真实重跑中若被删 step 关联 retry 事件,该 retry 可能不再发生)** |"
+    )
+    lines.append("")
+    lines.append("> TOOL-001/004 修复只影响工具调用层,不影响模型 API 重试(RETRY-001)。两类重试严格分开。")
+    lines.append("")
+
+    if ab.semantic_debated_occurrences > 0 or ab.semantic_debated_steps > 0:
+        lines.append("#### 语义存疑子集(轮询型工具,不计入硬可省)")
+        lines.append("")
+        lines.append(f"- 轮询型冗余 occurrence:{ab.semantic_debated_occurrences} 次")
+        lines.append(f"- 轮询型可删 step:{ab.semantic_debated_steps} 个")
+        lines.append("- 涉及工具:list_agents, list_sessions, session_status, browser_get_state, job_list, job_output, read_session, memory_list, browser_navigate")
+        lines.append("")
+        lines.append("> 这些工具在长任务中\"反复读取当前状态\"可能合法且必要。同 fingerprint 重复 ≠ 一定浪费。不计入硬可省。")
+        lines.append("")
+
+    if ab.tool004_failed_attempts > 0:
+        lines.append("#### TOOL-004 机制说明")
+        lines.append("")
+        lines.append(f"- 失败 attempt 数:{ab.tool004_failed_attempts}")
+        lines.append(f"- 失败生成 step 的 output tokens:{ab.tool004_failed_step_output_tokens}")
+        lines.append("")
+        lines.append("> TOOL-004 样本不足(10 条),以上为机制说明,非强计量结论。")
+        lines.append("")
+
+    return lines
+
+
 def render_report(
     trace: Trace,
     findings: list[Finding],
@@ -331,17 +405,19 @@ def render_report(
     context_health=None,
     token_invariant=None,
     session_lineage=None,
+    ab_result=None,
 ) -> str:
     """渲染诊断报告。
 
     enable_analysis(默认 False):开启分析层渲染(per-finding 置信度/反证 +
-    Summary 综合判断块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块)。
-    关闭时输出与 v0.5 逐字节一致。
+    Summary 综合判断块 + A/B 验证块 + 上下文健康度块 + 架构不变量检查块 +
+    跨会话 Lineage 块)。关闭时输出与 v0.5 逐字节一致。
     profile:会话画像;开启且为 None 时惰性计算(调用方通常从 pipeline 传入)。
     context_health:上下文健康度观测(CTX-001);开启且为 None 时惰性计算。
     token_invariant:Token 记账不变量观测(A1);开启且为 None 时惰性计算。
     session_lineage:跨会话 Lineage 观测(A2);需要 session_map,无惰性构建,
     仅开启且非 None 时渲染。
+    ab_result:修复前后 A/B 对比验证(B1);仅开启且非 None 时渲染。
     """
     lines: list[str] = []
     lines.append("# AgentTrace Diagnostic Report")
@@ -368,6 +444,8 @@ def render_report(
             token_invariant = build_token_invariant(trace)
         if enable_analysis:
             lines.extend(_render_profile_block(profile))
+            if ab_result is not None:
+                lines.extend(_render_ab_validation_block(ab_result))
             lines.extend(_render_context_health_block(context_health))
             lines.extend(_render_token_invariant_block(token_invariant))
             if session_lineage is not None:
@@ -410,9 +488,11 @@ def render_report(
     with_ev = sum(1 for f in findings if f.evidence)
     cov = with_ev / len(findings) * 100 if findings else 0
     lines.append(f"- Evidence 覆盖率: {cov:.0f}%({with_ev}/{len(findings)})")
-    # 综合判断块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块(仅分析层开启时渲染)
+    # 综合判断块 + A/B 验证块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块(仅分析层开启时渲染)
     if enable_analysis:
         lines.extend(_render_profile_block(profile))
+        if ab_result is not None:
+            lines.extend(_render_ab_validation_block(ab_result))
         lines.extend(_render_context_health_block(context_health))
         lines.extend(_render_token_invariant_block(token_invariant))
         if session_lineage is not None:

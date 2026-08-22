@@ -43,6 +43,8 @@ class DiagnosisResult:
     token_invariant: Optional[object] = None
     # 分析层开启时的跨会话 Lineage 观测(Stage 3 产物,SessionLineage 实例);关闭或未传 session_map 时为 None
     session_lineage: Optional[object] = None
+    # 分析层开启时的修复前后 A/B 对比验证观测(Stage 3 产物,ABResult 实例);关闭时为 None
+    ab_result: Optional[object] = None
 
 
 def diagnose(
@@ -99,9 +101,10 @@ def diagnose(
         except Exception as e:
             result.attribution_errors[rule] = str(e)
 
-    # Stage 3: Analysis(反证 + 置信度完善 + 上下文健康度 + 会话画像 + 跨会话 lineage)
+    # Stage 3: Analysis(反证 + 置信度完善 + 上下文健康度 + 会话画像 + 跨会话 lineage + A/B 验证)
     # 默认关闭;开启时挂载在 attribution 之后(画像依赖 attribution 输出)
     if enable_analysis:
+        from .analysis.ab_validation import build_ab_validation
         from .analysis.context_health import build_context_health
         from .analysis.counter_evidence import refine_findings
         from .analysis.profile import build_profile
@@ -112,6 +115,7 @@ def diagnose(
         result.context_health = build_context_health(trace)  # 不进 findings/attributions
         result.profile = build_profile(result.findings, result.attributions)
         result.token_invariant = build_token_invariant(trace)  # 不进 findings/attributions
+        result.ab_result = build_ab_validation(trace)  # B1:不进 findings/attributions
         # A2:跨会话 lineage 需要 session_map;None 时保持 None(单会话无跨会话数据)
         if session_map is not None:
             result.session_lineage = build_session_lineage(trace.session_id, session_map)

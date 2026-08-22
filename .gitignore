@@ -74,3 +74,11 @@ PROJECT_STATE.md
 # A2 调研产物 + 真实会话快照(含会话 ID/完整数据,开源不携带;本地保留)
 /research/lineage_probe/
 /reports/e2e_lineage.md
+
+# B1 调研产物 + 验证集 fixture + 真实会话快照(含会话 ID/完整 trace,开源不携带;本地保留)
+# 注意:tests/fixtures/b1_validation_sessions/ 是评审 E"跨机可复现"依赖,但含真实会话数据;
+# 用户确认(2026-08-22)暂时不入库 → 跨机复现(T23/T32)推迟,本机测试仍可用。
+/research/b1_*.py
+/research/b1_*.json
+/reports/e2e_ab.md
+/tests/fixtures/b1_validation_sessions/

@@ -4,6 +4,7 @@
 LLM 语义层为设计预留(见 design.md D6),本次不实现。
 """
 
+from .ab_validation import ABResult, SEMANTIC_DEBATED_TOOLS, build_ab_validation
 from .context_health import ContextHealth, build_context_health
 from .counter_evidence import analyze_finding, refine_findings
 from .profile import SessionProfile, build_profile
@@ -11,6 +12,9 @@ from .session_lineage import SessionLineage, build_session_lineage
 from .token_invariant import TokenInvariant, build_token_invariant
 
 __all__ = [
+    "ABResult",
+    "SEMANTIC_DEBATED_TOOLS",
+    "build_ab_validation",
     "ContextHealth",
     "build_context_health",
     "analyze_finding",

@@ -8,7 +8,7 @@
 
 | 事实 | 当前值 | 事实源 | 文档声明 pattern |
 |---|---|---|---|
-| 测试总数 | 248 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
+| 测试总数 | 280 | `pytest --collect-only` | `N 个 pytest` / `N 全绿` / `N passed` |
 | 间隔阈值 N | 5 | `counter_evidence.DEFAULT_GAP_THRESHOLD` | `阈值 N=N` |
 | detector 数 | 6 个 detector | `detectors.ALL_DETECTORS` | `N 个 detector` |
 
@@ -31,4 +31,5 @@
 - 2026-08-22 **189 → 196**:分析层追加"建议维"(Recommendation,补全四元组"建议"输出,纯规则、默认关闭保确定性)+7 测试;同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值。
 - 2026-08-22 **196 → 216**:token-invariant-check(A1)新增分析层会话级数据块 TokenInvariant(Token 记账双写不变量:adapter 事件生成 + 数据块 + 报告渲染,非 detector)+20 测试;同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
 - 2026-08-22 **216 → 248**:cross-session-lineage(A2)新增分析层会话级数据块 SessionLineage(跨会话血缘:沿 header.parentSession 权威边聚合子会话规模,区分 SUBAGENT/FORKED_SESSION,非 detector)+32 测试;同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
+- 2026-08-22 **248 → 280**:b1-ab-validation(B1)新增分析层会话级数据块 ABResult(修复前后 A/B 对比验证:original/fixed 静态重述,复用 TOOL-001/TOOL-004 检出逻辑,语义隔离 + retry 拆分,非 detector)+32 测试(设计表 T1–T32);同步全量状态文档 + 根 README badge/跑测试数 + FACTS 当前值(detector 数保持 6 不变)。
 <!-- facts-check:skip-end -->
