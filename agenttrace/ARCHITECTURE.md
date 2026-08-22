@@ -142,15 +142,16 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 |---|---|---|
 | 第一层 确定性规则 | TOOL-001 / RETRY-001 规则检测 | detector 直接出 finding |
 | 第二层 统计证据 | THINK-001 分布驱动(P95/P99) | 统计阈值来自真实分布 |
-| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 上下文健康度 + Token 记账不变量 + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
+| **分析层(Stage 3)** | **counter-evidence + 置信度完善 + 上下文健康度 + Token 记账不变量 + 跨会话 Lineage + 会话画像** | 纯规则,`enable_analysis` 默认关闭 |
 | 第三层 LLM 语义 | **未实现(设计预留)** | 见 `openspec/changes/complete-analysis-layer/design.md` D6;`CounterEvidence.source="semantic"` 已预留取值 |
 
-**分析层五件事(纯规则,无 LLM)**:
+**分析层六件事(纯规则,无 LLM)**:
 1. **反证(counter-evidence)**:每个 finding 附带"可能推翻此发现"的证据方向(TOOL-001 间隔大/无状态工具;CMP/THINK/RETRY/SUB 观测性反证;TOOL-004 adjacent_step 可能是独立调用)。
 2. **置信度完善**:沿用 `Finding.confidence`,基于证据强度精化(TOOL-001 间隔≤N 且参数一致→高置信;间隔>N→降置信+反证;无状态→保持 0.55+反证)。
 3. **会话画像**:Summary 新增"综合判断"块,按"可归因成本 × 置信度"确定性排序 top-3 + 一句话健康度概述。
 4. **上下文健康度(CTX-001)**:Summary 新增"上下文健康度"块(会话级观测数据块,非 detector/finding)——当前/峰值上下文 tokens(含 cache_read,M1 口径)、turn 数、重复工具调用操作率;量化"上下文压力"仅在 `metadata["context_window"]` 真实已知时给出,否则显示 not applicable(不虚构窗口、不产虚假压力结论);不判因果、不做成本归因。
 5. **Token 记账不变量(A1)**:Summary 新增"架构不变量检查"块(会话级观测数据块,非 detector/finding)——adapter 解析时按 (turn,step) 收集 chunk/message 两份 usage,all-pairs 一致则发 `token/usage-duplicate`、不一致则发 `token/usage-inconsistent`;数据块统计双写步数、"非去重消费方的假设性溢出上界"(`naive_double_count_tokens`)、双写子集内乘数(恒 2.0)与全局稀释因子;`causal_claim=NONE`,不判 harness bug、不混算 wasted。
+6. **跨会话 Lineage(A2)**:Summary 新增"跨会话 Lineage"块(会话级观测数据块,非 detector/finding)——adapter 提取 session 头 `parentSession`/`origin`/`delegationDepth`;沿 `header.parentSession` 权威边构建血缘图,递归聚合 SUBAGENT(`lineage_descendant_*`,仅 origin=subagent)与 FORKED_SESSION(`lineage_fork_descendant_*`,独立层)子代;子会话 token 只归自己、禁止沿链再加总;`causal_claim=NONE`,不判因果、不做成本归因;不可解析 → 悬挂节点,报告注明"本机可解析子图内成立"。
 
 **分析层边界铁律**:
 - 反证/置信度是"分析"不是"归因",不参与成本归因、不发明 token 成本;
@@ -159,7 +160,7 @@ report 按 kind 语义分离汇总,**绝不把不同 kind 的 tokens 加成一�
 
 ## 七、测试
 
-- 216 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / pipeline×6 / recommendation×7 / CTX-001×21 / token-invariant×20
+- 248 个 pytest 全过:TOOL-001×26 / CMP-001×7 / THINK-001×9 / RETRY-001×9 / SUB-001×8 / TOOL-004×35 / 分析层×31 / 归因×8 / registry 快照×10 / v0.3 checkpoint×6 / adapter×5 / CLI×8 / pipeline×6 / recommendation×7 / CTX-001×21 / token-invariant×20 / session-lineage×32
 - 覆盖:Golden Trace / Precision/Recall 基线 / lifecycle / outcome / zero-usage / contract 兼容 / 错误隔离 / 缺失字段 / 反证规则 / 置信度完善 / 画像排序 / 上下文健康度观测 / Token 记账不变量 / 开关门控 / 默认路径逐字节对比
 
 ## 八、Roadmap

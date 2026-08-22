@@ -41,12 +41,15 @@ class DiagnosisResult:
     context_health: Optional[object] = None
     # 分析层开启时的 Token 记账不变量观测(Stage 3 产物,TokenInvariant 实例);关闭时为 None
     token_invariant: Optional[object] = None
+    # 分析层开启时的跨会话 Lineage 观测(Stage 3 产物,SessionLineage 实例);关闭或未传 session_map 时为 None
+    session_lineage: Optional[object] = None
 
 
 def diagnose(
     trace: Trace,
     detector_names: list[str] | None = None,
     enable_analysis: bool = False,
+    session_map: dict[str, Trace] | None = None,
 ) -> DiagnosisResult:
     """跑完整 pipeline。detector_names=None 时跑全部注册的 detector。
 
@@ -54,6 +57,9 @@ def diagnose(
 
     enable_analysis(默认 False):开启分析层 Stage 3(反证 + 置信度完善 + 会话画像)。
     关闭时分析阶段整体跳过,输出与 v0.5 逐字节一致(确定性铁律)。
+
+    session_map(默认 None):跨会话 lineage 所需的 {session_id: Trace} 映射。
+    传入时(且 enable_analysis=True)构建 SessionLineage;None 时 session_lineage 保持 None。
     """
     result = DiagnosisResult(trace=trace)
 
@@ -93,17 +99,21 @@ def diagnose(
         except Exception as e:
             result.attribution_errors[rule] = str(e)
 
-    # Stage 3: Analysis(反证 + 置信度完善 + 上下文健康度 + 会话画像)
+    # Stage 3: Analysis(反证 + 置信度完善 + 上下文健康度 + 会话画像 + 跨会话 lineage)
     # 默认关闭;开启时挂载在 attribution 之后(画像依赖 attribution 输出)
     if enable_analysis:
         from .analysis.context_health import build_context_health
         from .analysis.counter_evidence import refine_findings
         from .analysis.profile import build_profile
+        from .analysis.session_lineage import build_session_lineage
         from .analysis.token_invariant import build_token_invariant
 
         refine_findings(result.findings, trace)
         result.context_health = build_context_health(trace)  # 不进 findings/attributions
         result.profile = build_profile(result.findings, result.attributions)
         result.token_invariant = build_token_invariant(trace)  # 不进 findings/attributions
+        # A2:跨会话 lineage 需要 session_map;None 时保持 None(单会话无跨会话数据)
+        if session_map is not None:
+            result.session_lineage = build_session_lineage(trace.session_id, session_map)
 
     return result

@@ -114,7 +114,14 @@ def parse_dsh_jsonl(file_path: str) -> Trace:
 
             if etype == "session":
                 session_id = ev.get("id", "")
-                trace.metadata = {"cwd": data.get("cwd"), "agentPreset": data.get("agentPreset")}
+                # A2 新增(additive):lineage 字段在 session 事件顶层(非 data 内)
+                trace.metadata = {
+                    "cwd": data.get("cwd"),
+                    "agentPreset": data.get("agentPreset"),
+                    "parentSession": ev.get("parentSession"),
+                    "origin": ev.get("origin"),
+                    "delegationDepth": ev.get("delegationDepth", 0),
+                }
                 trace.session_id = session_id
 
             elif etype == "turn/start":

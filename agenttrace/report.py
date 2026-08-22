@@ -276,6 +276,52 @@ def _render_token_invariant_block(ti) -> list[str]:
     return lines
 
 
+def _render_session_lineage_block(sl) -> list[str]:
+    """渲染跨会话 Lineage 块(A2,分析层观测)。
+
+    纯函数、确定性。语义边界:
+    - 后代 token 标注"token 规模观测,非成本";
+    - 不出现 "wasted" / "Total wasted" / "harness bug" / "父浪费" / "父省子费";
+    - causal_claim=NONE;
+    - 边界标注"本机可解析子图内成立";
+    - provider=None 时该项不渲染;forked-session 块仅 count>0 时渲染。
+    """
+    lines = ["", "### 跨会话 Lineage (A2)"]
+    lines.append("")
+    lines.append(f"- **自身**: {sl.own_tokens} tokens / {sl.own_steps} steps / {sl.own_tools} 工具调用")
+
+    parent_str = sl.parent_session_id or "无(根会话)"
+    lines.append(f"- **父会话**: {parent_str}")
+    lines.append(f"- **父边类别**: {sl.parent_category}")
+    lines.append(f"- **图深度**: {sl.lineage_depth} (从本机根)")
+
+    lines.append(f"- **子代理委托(token 规模观测,非成本)**:")
+    lines.append(f"  - subagent 直接子代: {sl.subagent_child_count} 个")
+    lines.append(
+        f"  - subagent 后代 token 合计: {sl.lineage_descendant_tokens} tokens / "
+        f"{sl.lineage_descendant_steps} steps / {sl.lineage_descendant_tools} 工具"
+    )
+
+    if sl.fork_session_child_count > 0:
+        lines.append(f"- **会话延续链(关联会话,非 subagent 委托)**:")
+        lines.append(f"  - forked-session 直接子代: {sl.fork_session_child_count} 个")
+        lines.append(
+            f"  - forked-session 后代 token 合计: {sl.lineage_fork_descendant_tokens} tokens"
+        )
+
+    if sl.provider is not None:
+        lines.append(f"- **形态**: provider={sl.provider} mode={sl.mode}")
+
+    boundary = (
+        f"本机可解析子图内成立 (覆盖 {sl.total_sessions_in_graph} 会话"
+        + (f", {sl.unresolvable_edges} 条不可解析边" if sl.unresolvable_edges > 0 else "")
+        + ")"
+    )
+    lines.append(f"- **边界**: {boundary}")
+
+    return lines
+
+
 def render_report(
     trace: Trace,
     findings: list[Finding],
@@ -284,15 +330,18 @@ def render_report(
     profile=None,
     context_health=None,
     token_invariant=None,
+    session_lineage=None,
 ) -> str:
     """渲染诊断报告。
 
     enable_analysis(默认 False):开启分析层渲染(per-finding 置信度/反证 +
-    Summary 综合判断块 + 上下文健康度块 + 架构不变量检查块)。关闭时输出与
-    v0.5 逐字节一致。
+    Summary 综合判断块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块)。
+    关闭时输出与 v0.5 逐字节一致。
     profile:会话画像;开启且为 None 时惰性计算(调用方通常从 pipeline 传入)。
     context_health:上下文健康度观测(CTX-001);开启且为 None 时惰性计算。
     token_invariant:Token 记账不变量观测(A1);开启且为 None 时惰性计算。
+    session_lineage:跨会话 Lineage 观测(A2);需要 session_map,无惰性构建,
+    仅开启且非 None 时渲染。
     """
     lines: list[str] = []
     lines.append("# AgentTrace Diagnostic Report")
@@ -321,6 +370,8 @@ def render_report(
             lines.extend(_render_profile_block(profile))
             lines.extend(_render_context_health_block(context_health))
             lines.extend(_render_token_invariant_block(token_invariant))
+            if session_lineage is not None:
+                lines.extend(_render_session_lineage_block(session_lineage))
         return "\n".join(lines)
 
     if enable_analysis and profile is None:
@@ -359,11 +410,13 @@ def render_report(
     with_ev = sum(1 for f in findings if f.evidence)
     cov = with_ev / len(findings) * 100 if findings else 0
     lines.append(f"- Evidence 覆盖率: {cov:.0f}%({with_ev}/{len(findings)})")
-    # 综合判断块 + 上下文健康度块 + 架构不变量检查块(仅分析层开启时渲染)
+    # 综合判断块 + 上下文健康度块 + 架构不变量检查块 + 跨会话 Lineage 块(仅分析层开启时渲染)
     if enable_analysis:
         lines.extend(_render_profile_block(profile))
         lines.extend(_render_context_health_block(context_health))
         lines.extend(_render_token_invariant_block(token_invariant))
+        if session_lineage is not None:
+            lines.extend(_render_session_lineage_block(session_lineage))
     lines.append("")
 
     # ===== 按 kind 分组的五段式 =====

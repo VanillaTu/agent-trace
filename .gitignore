@@ -70,3 +70,7 @@ PROJECT_STATE.md
 
 # A1 真实会话快照(含会话 ID/绝对路径,开源不携带;本地保留)
 /reports/e2e_token_invariant.md
+
+# A2 调研产物 + 真实会话快照(含会话 ID/完整数据,开源不携带;本地保留)
+/research/lineage_probe/
+/reports/e2e_lineage.md

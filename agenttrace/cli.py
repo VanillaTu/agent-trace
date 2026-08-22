@@ -65,9 +65,16 @@ def cmd_analyze(args) -> int:
             print(f"未知 detector: {unknown}(可用: {names})", file=sys.stderr)
             return 2
 
+    # A2:单会话局部 session_map(评审 C 方案2)——仅当前会话的 Trace,
+    # 让跨会话 lineage 在默认 analyze 路径下至少部分可观测(own_* / parent_* 据 header)。
+    session_map = {trace.session_id: trace}
+
     from .pipeline import diagnose
     result = diagnose(
-        trace, detector_names=detector_names, enable_analysis=args.analysis
+        trace,
+        detector_names=detector_names,
+        enable_analysis=args.analysis,
+        session_map=session_map,
     )
 
     from .report import render_report
@@ -79,6 +86,7 @@ def cmd_analyze(args) -> int:
         profile=result.profile,
         context_health=result.context_health,
         token_invariant=result.token_invariant,
+        session_lineage=result.session_lineage,
     )
 
     if args.out:
